@@ -8,8 +8,9 @@ Full spec: [`docs/SPEC.md`](docs/SPEC.md). Architecture decisions and rationale:
 [`docs/DECISIONS.md`](docs/DECISIONS.md). Rules for anyone (human or agent) working in
 this repo: [`CLAUDE.md`](CLAUDE.md).
 
-**Status:** Phase 0 (scaffold) complete. See the implementation plan for the full
-phase-gated build order.
+**Status:** Phase 0 (scaffold) complete, Phase 1 (golden eval set) in place with a
+synthetic v1 dataset — pending real tender/company-profile examples. See the
+implementation plan for the full phase-gated build order.
 
 ## Architecture, in one line
 
@@ -45,12 +46,31 @@ Verify:
 
 ```bash
 cd backend
+python -m venv .venv && .venv/Scripts/activate   # .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 pytest tests/unit -v
 ```
 
 Tests mock the LLM, S3, and Celery — a test run costs $0 and is deterministic (see
 `CLAUDE.md` hard rule 8).
+
+## Golden eval set (Phase 1)
+
+`backend/evals/` holds the golden datasets pipeline phases are gated against, plus small
+synthetic PDF fixtures they reference. Regenerate/extend them with:
+
+```bash
+cd backend
+.venv/Scripts/python.exe scripts/build_eval_set.py
+```
+
+This is a v1, synthetic set (23 generated fixtures, 144 examples across page
+classification, extraction, go/no-go, risk-finder, and adversarial cases — see
+`docs/DECISIONS.md` row 14). Real anonymized tender excerpts and the actual company
+profile, once available, get added as further fixtures via the same generator, not a
+replacement of it. `pytest evals/` is expected to fail with import errors until the
+pipeline phases that produce what it tests (Phase 2 onward) are built — that's the
+correct state until then.
 
 ## Project layout
 

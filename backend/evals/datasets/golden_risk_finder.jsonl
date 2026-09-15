@@ -1,0 +1,16 @@
+{"fixture": "fixture_01_nhai_road", "page_number": 3, "expected_category": "Liquidated Damages", "expected_severity": "HIGH"}
+{"fixture": "fixture_02_pwd_building", "page_number": 2, "expected_category": "Payment Terms", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_03_irrigation", "page_number": 3, "expected_category": "Force Majeure", "expected_severity": "LOW"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 2, "expected_category": "Termination", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_09_electrical_works", "page_number": 1, "expected_category": "Indemnity", "expected_severity": "HIGH"}
+{"fixture": "fixture_09_electrical_works", "page_number": 2, "expected_category": "Termination", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_14_volume_0", "page_number": 2, "expected_category": "Liquidated Damages", "expected_severity": "HIGH"}
+{"fixture": "fixture_15_volume_1", "page_number": 2, "expected_category": "Indemnity", "expected_severity": "HIGH"}
+{"fixture": "fixture_16_volume_2", "page_number": 2, "expected_category": "Termination", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_17_volume_3", "page_number": 2, "expected_category": "Payment Terms", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_18_volume_4", "page_number": 2, "expected_category": "Force Majeure", "expected_severity": "LOW"}
+{"fixture": "fixture_19_volume_5", "page_number": 2, "expected_category": "Liquidated Damages", "expected_severity": "HIGH"}
+{"fixture": "fixture_20_volume_6", "page_number": 2, "expected_category": "Indemnity", "expected_severity": "HIGH"}
+{"fixture": "fixture_21_volume_7", "page_number": 2, "expected_category": "Termination", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_22_volume_8", "page_number": 2, "expected_category": "Payment Terms", "expected_severity": "MEDIUM"}
+{"fixture": "fixture_23_volume_9", "page_number": 2, "expected_category": "Force Majeure", "expected_severity": "LOW"}

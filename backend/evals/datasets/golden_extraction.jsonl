@@ -1,0 +1,13 @@
+{"fixture": "fixture_01_nhai_road", "page_number": 1, "expected_facts": {"eligibility": ["Minimum average annual turnover of INR 50 Crore in the last 3 financial years", "Valid ISO 9001:2015 certification"]}}
+{"fixture": "fixture_01_nhai_road", "page_number": 2, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "15 November 2026"}], "amounts": [{"label": "EMD", "value": "INR 116 Lakh"}]}}
+{"fixture": "fixture_10_water_supply_ambiguous", "page_number": 1, "expected_facts": {"dates": [{"label": "Bid submission deadline (cover page)", "value": "20 November 2026", "page_ref": 0}, {"label": "Bid submission deadline (corrigendum)", "value": "27 November 2026", "page_ref": 1}], "note": "AMBIGUOUS: two conflicting deadlines. Both must be surfaced, never silently picked."}}
+{"fixture": "fixture_14_volume_0", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "05 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_15_volume_1", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "08 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_16_volume_2", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "11 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_17_volume_3", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "14 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_18_volume_4", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "17 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_19_volume_5", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "20 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_20_volume_6", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "23 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_21_volume_7", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "06 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_22_volume_8", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "09 December 2026", "page_ref": 5}]}}
+{"fixture": "fixture_23_volume_9", "page_number": 5, "expected_facts": {"dates": [{"label": "Bid submission deadline", "value": "12 December 2026", "page_ref": 5}]}}

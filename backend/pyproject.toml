@@ -10,6 +10,8 @@ select = ["E", "F", "I", "UP", "B"]
 # FastAPI's dependency-injection idiom (`= Depends(...)` as a default) is the intended
 # pattern, not the mutable-default-argument bug B008 detects.
 "app/api/*.py" = ["B008"]
+# Data-authoring script: fixture/tuple literals read better unwrapped than reflowed.
+"scripts/build_eval_set.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -2,7 +2,9 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 0. Do not build ahead of the current phase.
+Current phase: 1 (golden eval set). Do not build ahead of the current phase — Phase 2
+(ingestion/classification) starts once real tender/company-profile examples are folded
+into the eval set and Phase 1 is reviewed.
 This is a pipeline (map-reduce), not an agent. There is no retrieval step — every page of
 every uploaded tender is read in full. Do not add `app/rag/`, `app/agents/`, or a
 LangGraph dependency without an explicit ask; none of the three modules need dynamic

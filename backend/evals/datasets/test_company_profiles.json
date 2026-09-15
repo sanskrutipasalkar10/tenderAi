@@ -1,0 +1,43 @@
+{
+  "profile_qualified": {
+    "company_name": "Test Infra Builders Pvt. Ltd.",
+    "annual_turnover": {
+      "2023": 680000000.0,
+      "2024": 720000000.0
+    },
+    "certifications": [
+      "ISO 9001:2015"
+    ],
+    "past_projects": [
+      {
+        "name": "River Bridge Package II",
+        "client": "State PWD",
+        "value": "INR 35 Cr",
+        "year": 2023
+      }
+    ],
+    "geographic_presence": [
+      "Maharashtra",
+      "Gujarat"
+    ],
+    "sectors": [
+      "road construction",
+      "bridges"
+    ],
+    "max_capacity_pct": 60
+  },
+  "profile_incomplete": {
+    "company_name": "Test Infra Builders Pvt. Ltd.",
+    "annual_turnover": {
+      "2023": 680000000.0,
+      "2024": 720000000.0
+    },
+    "certifications": null,
+    "past_projects": [],
+    "geographic_presence": [
+      "Maharashtra"
+    ],
+    "sectors": null,
+    "max_capacity_pct": 60
+  }
+}

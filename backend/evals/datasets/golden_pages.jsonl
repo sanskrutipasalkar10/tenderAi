@@ -1,0 +1,109 @@
+{"fixture": "fixture_01_nhai_road", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_01_nhai_road", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_01_nhai_road", "page_number": 2, "expected_classification": "native_text", "notes": "financials/dates"}
+{"fixture": "fixture_01_nhai_road", "page_number": 3, "expected_classification": "native_text", "notes": "risk clause: LD"}
+{"fixture": "fixture_01_nhai_road", "page_number": 4, "expected_classification": "table", "notes": "BOQ"}
+{"fixture": "fixture_01_nhai_road", "page_number": 5, "expected_classification": "scanned_image", "notes": "scanned signature page"}
+{"fixture": "fixture_02_pwd_building", "page_number": 0, "expected_classification": "mixed", "notes": "cover with letterhead"}
+{"fixture": "fixture_02_pwd_building", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_02_pwd_building", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: payment terms"}
+{"fixture": "fixture_02_pwd_building", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_02_pwd_building", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned site layout"}
+{"fixture": "fixture_02_pwd_building", "page_number": 5, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_03_irrigation", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_03_irrigation", "page_number": 1, "expected_classification": "table", "notes": "schedule 1"}
+{"fixture": "fixture_03_irrigation", "page_number": 2, "expected_classification": "table", "notes": "schedule 2"}
+{"fixture": "fixture_03_irrigation", "page_number": 3, "expected_classification": "native_text", "notes": "risk clause: force majeure"}
+{"fixture": "fixture_03_irrigation", "page_number": 4, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 0, "expected_classification": "scanned_image", "notes": "scanned cover"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 1, "expected_classification": "scanned_image", "notes": "scanned eligibility"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 2, "expected_classification": "scanned_image", "notes": "scanned risk clause"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 3, "expected_classification": "scanned_image", "notes": "scanned approval"}
+{"fixture": "fixture_04_railway_scanned", "page_number": 4, "expected_classification": "native_text", "notes": "native addendum appended to scanned doc"}
+{"fixture": "fixture_09_electrical_works", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_09_electrical_works", "page_number": 1, "expected_classification": "native_text", "notes": "risk clause: indemnity"}
+{"fixture": "fixture_09_electrical_works", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: termination"}
+{"fixture": "fixture_09_electrical_works", "page_number": 3, "expected_classification": "mixed", "notes": "tech spec with diagram"}
+{"fixture": "fixture_09_electrical_works", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned route map"}
+{"fixture": "fixture_10_water_supply_ambiguous", "page_number": 0, "expected_classification": "native_text", "notes": "cover page — states deadline as 20 Nov 2026"}
+{"fixture": "fixture_10_water_supply_ambiguous", "page_number": 1, "expected_classification": "native_text", "notes": "corrigendum — states deadline as 27 Nov 2026"}
+{"fixture": "fixture_10_water_supply_ambiguous", "page_number": 2, "expected_classification": "table", "notes": "schedule"}
+{"fixture": "fixture_11_go_no_go_pass", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_11_go_no_go_pass", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_12_go_no_go_fail", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_12_go_no_go_fail", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause (high bar)"}
+{"fixture": "fixture_13_incomplete_profile", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_13_incomplete_profile", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_07_injection", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_07_injection", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_07_injection", "page_number": 2, "expected_classification": "native_text", "notes": "ADVERSARIAL: embedded prompt injection"}
+{"fixture": "fixture_08_non_tender", "page_number": 0, "expected_classification": "native_text", "notes": "ADVERSARIAL: non-tender document"}
+{"fixture": "fixture_08_non_tender", "page_number": 1, "expected_classification": "table", "notes": "financial table, not a BOQ — still not a tender"}
+{"fixture": "fixture_14_volume_0", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_14_volume_0", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_14_volume_0", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Liquidated Damages"}
+{"fixture": "fixture_14_volume_0", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_14_volume_0", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned authentication"}
+{"fixture": "fixture_14_volume_0", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_15_volume_1", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_15_volume_1", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_15_volume_1", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Indemnity"}
+{"fixture": "fixture_15_volume_1", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_15_volume_1", "page_number": 4, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_15_volume_1", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_16_volume_2", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_16_volume_2", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_16_volume_2", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Termination"}
+{"fixture": "fixture_16_volume_2", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_16_volume_2", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned authentication"}
+{"fixture": "fixture_16_volume_2", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_17_volume_3", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_17_volume_3", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_17_volume_3", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Payment Terms"}
+{"fixture": "fixture_17_volume_3", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_17_volume_3", "page_number": 4, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_17_volume_3", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_18_volume_4", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_18_volume_4", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_18_volume_4", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Force Majeure"}
+{"fixture": "fixture_18_volume_4", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_18_volume_4", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned authentication"}
+{"fixture": "fixture_18_volume_4", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_19_volume_5", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_19_volume_5", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_19_volume_5", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Liquidated Damages"}
+{"fixture": "fixture_19_volume_5", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_19_volume_5", "page_number": 4, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_19_volume_5", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_20_volume_6", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_20_volume_6", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_20_volume_6", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Indemnity"}
+{"fixture": "fixture_20_volume_6", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_20_volume_6", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned authentication"}
+{"fixture": "fixture_20_volume_6", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_21_volume_7", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_21_volume_7", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_21_volume_7", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Termination"}
+{"fixture": "fixture_21_volume_7", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_21_volume_7", "page_number": 4, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_21_volume_7", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_22_volume_8", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_22_volume_8", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_22_volume_8", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Payment Terms"}
+{"fixture": "fixture_22_volume_8", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_22_volume_8", "page_number": 4, "expected_classification": "scanned_image", "notes": "scanned authentication"}
+{"fixture": "fixture_22_volume_8", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_23_volume_9", "page_number": 0, "expected_classification": "native_text", "notes": "cover page"}
+{"fixture": "fixture_23_volume_9", "page_number": 1, "expected_classification": "native_text", "notes": "eligibility clause"}
+{"fixture": "fixture_23_volume_9", "page_number": 2, "expected_classification": "native_text", "notes": "risk clause: Force Majeure"}
+{"fixture": "fixture_23_volume_9", "page_number": 3, "expected_classification": "table", "notes": "schedule of quantities"}
+{"fixture": "fixture_23_volume_9", "page_number": 4, "expected_classification": "mixed", "notes": "EMD with letterhead"}
+{"fixture": "fixture_23_volume_9", "page_number": 5, "expected_classification": "native_text", "notes": "key dates"}
+{"fixture": "fixture_05_boilerplate_A", "page_number": 0, "expected_classification": "native_text", "notes": "cover page (unique per doc)"}
+{"fixture": "fixture_05_boilerplate_A", "page_number": 1, "expected_classification": "native_text", "notes": "SHARED boilerplate — GCC"}
+{"fixture": "fixture_05_boilerplate_A", "page_number": 2, "expected_classification": "native_text", "notes": "SHARED boilerplate — arbitration"}
+{"fixture": "fixture_05_boilerplate_A", "page_number": 3, "expected_classification": "native_text", "notes": "unique financials"}
+{"fixture": "fixture_06_boilerplate_B", "page_number": 0, "expected_classification": "native_text", "notes": "cover page (unique per doc)"}
+{"fixture": "fixture_06_boilerplate_B", "page_number": 1, "expected_classification": "native_text", "notes": "SHARED boilerplate — GCC"}
+{"fixture": "fixture_06_boilerplate_B", "page_number": 2, "expected_classification": "native_text", "notes": "SHARED boilerplate — arbitration"}
+{"fixture": "fixture_06_boilerplate_B", "page_number": 3, "expected_classification": "native_text", "notes": "unique financials"}
