@@ -1,0 +1,44 @@
+# API
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-multipart==0.0.20
+
+# Database
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+
+# Object storage
+boto3==1.35.90
+
+# Queue
+celery==5.4.0
+redis==5.2.1
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# PDF / vision pipeline (Phase 2-3)
+pymupdf==1.25.1
+pdfplumber==0.11.10
+camelot-py[cv]==1.0.0
+
+# LLM access (Phase 3-5)
+litellm==1.56.5
+
+# Observability
+langfuse==2.57.1
+prometheus-fastapi-instrumentator==7.0.0
+structlog==24.4.0
+
+# Dev / test
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+httpx==0.27.2
+ruff==0.8.4
+mypy==1.14.0

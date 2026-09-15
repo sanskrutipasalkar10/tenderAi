@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's dependency-injection idiom (`= Depends(...)` as a default) is the intended
+# pattern, not the mutable-default-argument bug B008 detects.
+"app/api/*.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "evals"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Env / secrets
+.env
+*.env.local
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Docker volumes / local data
+postgres_data/
+minio_data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
