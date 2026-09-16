@@ -42,6 +42,42 @@ class TableCellData(BaseModel):
     rows: list[list[str]]
 
 
+# --- Map-pass output (app/pipeline/map_pass.py) — validates the model's JSON response
+# before it's trusted, per CLAUDE.md hard rule 4. Shape matches the DDL's own comment
+# on chunk_extractions.structured_json: "{dates:[], amounts:[], criteria:[],
+# risk_candidates:[...]}, each item cites a page" (spec §3.1). --------------------
+
+
+class MapPassDateFact(BaseModel):
+    label: str
+    value: str
+    page_ref: int = Field(ge=0)
+
+
+class MapPassAmountFact(BaseModel):
+    label: str
+    value: str
+    page_ref: int = Field(ge=0)
+
+
+class MapPassCriterionFact(BaseModel):
+    description: str
+    page_ref: int = Field(ge=0)
+
+
+class MapPassRiskCandidate(BaseModel):
+    category: str
+    clause_summary: str
+    page_ref: int = Field(ge=0)
+
+
+class MapPassResult(BaseModel):
+    dates: list[MapPassDateFact] = Field(default_factory=list)
+    amounts: list[MapPassAmountFact] = Field(default_factory=list)
+    criteria: list[MapPassCriterionFact] = Field(default_factory=list)
+    risk_candidates: list[MapPassRiskCandidate] = Field(default_factory=list)
+
+
 # --- API request/response schemas ------------------------------------------------
 
 

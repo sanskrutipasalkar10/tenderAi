@@ -1,5 +1,11 @@
 """Loads prompts from versioned files (CLAUDE.md hard rule 2 — never inline in Python)
 and logs which version was used, per the GenAI Playbook's Reasoning Control checklist.
+
+When a prompt needs runtime content substituted in (e.g. a chunk's page text), use
+`.replace("{content}", value)` on the loaded string, NOT `str.format()` — a prompt that
+includes a JSON example (map_pass, reduce prompts) is full of literal `{braces}` that
+`.format()` misinterprets as placeholders and raises KeyError on. Confirmed the hard
+way in app/pipeline/map_pass.py (docs/DECISIONS.md #37).
 """
 
 from functools import cache
