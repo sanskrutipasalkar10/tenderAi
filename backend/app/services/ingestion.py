@@ -1,6 +1,7 @@
-"""Ingestion orchestration — Phase 2 scope: classify + native-extract every page and
-write the raw layer (`pages`, `extracted_tables`), no LLM call anywhere in this module
-(docs/SPEC.md §10, CLAUDE.md hard rule 1).
+"""Ingestion orchestration — classify + extract (native or vision) every page, dedupe
+against boilerplate_cache, and write the raw layer (`pages`, `extracted_tables`).
+Vision extraction is the only LLM call in this module, routed through
+app.llm.router/client, never a provider SDK directly (CLAUDE.md hard rule 1).
 
 Kept as plain, directly-callable functions rather than Celery-task methods so they're
 testable without a broker (`app/workers/tasks_ingest.py` is a thin wrapper around
@@ -8,9 +9,9 @@ testable without a broker (`app/workers/tasks_ingest.py` is a thin wrapper aroun
 definition" pattern). Plain `def`, not `async def` — PyMuPDF/pdfplumber and boto3 are
 CPU-bound / blocking (CLAUDE.md hard rule 9).
 
-Scanned pages get a placeholder row here (extraction_method=None, raw_text=None) —
-vision extraction is Phase 3. This still satisfies the zero-page-drop invariant: every
-page produces a `pages` row in this phase, even if its content isn't extracted yet.
+Every page produces a `pages` row regardless of extraction outcome — CLAUDE.md's
+zero-page-drop invariant: an extraction failure (native finds no text, vision errors
+out) is a low-confidence row, never a missing one.
 """
 
 import uuid
@@ -22,8 +23,10 @@ from app.core.logging import get_logger
 from app.models.document import Document
 from app.models.extracted_table import ExtractedTable
 from app.models.page import Page
+from app.pipeline import dedupe
 from app.pipeline.classify import classification_confidence, classify_page
 from app.pipeline.extract_native import extract_page_text, extract_table_structure
+from app.pipeline.extract_vision import extract_page_via_vision
 from app.storage.objects import get_object_bytes
 
 logger = get_logger(__name__)
@@ -52,7 +55,7 @@ def run_ingestion(db: Session, document_id: uuid.UUID) -> Document:
     db.commit()
 
     for page in pdf:
-        _process_page(db, document.id, page, pdf_bytes)
+        _process_page(db, document, page, pdf_bytes)
 
     pdf.close()
 
@@ -65,7 +68,7 @@ def run_ingestion(db: Session, document_id: uuid.UUID) -> Document:
     return document
 
 
-def _process_page(db: Session, document_id: uuid.UUID, page: fitz.Page, pdf_bytes: bytes) -> None:
+def _process_page(db: Session, document: Document, page: fitz.Page, pdf_bytes: bytes) -> None:
     classification = classify_page(page)
     confidence = classification_confidence(page, classification)
 
@@ -78,10 +81,15 @@ def _process_page(db: Session, document_id: uuid.UUID, page: fitz.Page, pdf_byte
         raw_text = result.raw_text
         content_hash = result.content_hash
         extraction_method = "native" if raw_text is not None else None
-    # else: scanned_image — left as a pending placeholder row for Phase 3.
+    else:  # scanned_image
+        result = extract_page_via_vision(page)
+        raw_text = result.raw_text
+        content_hash = result.content_hash
+        extraction_method = result.extraction_method
+        confidence = result.confidence_score
 
     page_row = Page(
-        document_id=document_id,
+        document_id=document.id,
         page_number=page.number,
         classification=classification,
         extraction_method=extraction_method,
@@ -105,3 +113,8 @@ def _process_page(db: Session, document_id: uuid.UUID, page: fitz.Page, pdf_byte
             )
 
     db.commit()
+
+    if raw_text is not None and content_hash is not None:
+        dedupe.check_and_record(
+            db, content_hash, document.id, raw_text, document.issuing_authority
+        )

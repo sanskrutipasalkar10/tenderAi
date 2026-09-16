@@ -8,12 +8,12 @@ Full spec: [`docs/SPEC.md`](docs/SPEC.md). Architecture decisions and rationale:
 [`docs/DECISIONS.md`](docs/DECISIONS.md). Rules for anyone (human or agent) working in
 this repo: [`CLAUDE.md`](CLAUDE.md).
 
-**Status:** Phases 0-2 complete. Phase 2 (ingestion/classification/native extraction) is
-verified against a real, live Postgres (reached over Tailscale) — migrations applied,
-real integration test passing, not just unit-tested. Two DB schemas now exist: our
-page-level schema is canonical, a colleague's bronze/silver/gold schema is a derived
-export/reporting layer — see `docs/ARCHITECTURE.md`. See the implementation plan for the
-full phase-gated build order.
+**Status:** Phases 0-3 complete. Verified against both the synthetic golden set and all
+8 real tender PDFs in `documents/` (1197 real pages) against a real, live Postgres
+(reached over Tailscale). Two DB schemas exist: our page-level schema is canonical, a
+colleague's bronze/silver/gold schema is a derived export/reporting layer — see
+`docs/ARCHITECTURE.md`. LLM access is Ollama Cloud (free tier, no API key) — see
+`docs/DECISIONS.md` #28. See the implementation plan for the full phase-gated build order.
 
 ## Architecture, in one line
 
@@ -26,7 +26,7 @@ page of every tender is read in full; there is no retrieval step.
 Prerequisites: Docker, Docker Compose.
 
 ```bash
-cp .env.example .env          # fill in GEMINI_API_KEY / GROQ_API_KEY when you reach Phase 3
+cp .env.example .env          # LLM access is Ollama Cloud — install ollama, `ollama` login, no API key needed
 docker compose up --build
 ```
 

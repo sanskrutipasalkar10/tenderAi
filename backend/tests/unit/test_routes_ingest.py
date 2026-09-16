@@ -27,9 +27,7 @@ def _fake_refresh(obj) -> None:
     if getattr(obj, "id", None) is None:
         obj.id = uuid.uuid4()
     if getattr(obj, "uploaded_at", None) is None:
-        # timezone.utc, not the 3.11+ datetime.UTC alias — CI runs 3.11 (matches
-        # pyproject.toml's target-version) but local dev here happens to be on 3.10.
-        obj.uploaded_at = datetime.now(timezone.utc)  # noqa: UP017
+        obj.uploaded_at = datetime.now(timezone.utc)
 
 
 @pytest.fixture(autouse=True)

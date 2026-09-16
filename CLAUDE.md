@@ -2,12 +2,13 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 2 — CLOSED. Both migrations (0001 canonical schema, 0002 colleague's
-bronze/silver/gold export layer) are applied and verified against a real, reachable
+Current phase: 3 (vision extraction + boilerplate dedupe) — built and verified against
+both the synthetic golden set and all 8 real tender PDFs in `documents/` (1197 real
+pages, 13 real scanned pages, 11 successfully vision-extracted — see
+docs/DECISIONS.md #28-30). Phase 2's migrations (0001 canonical schema, 0002 colleague's
+bronze/silver/gold export layer) remain applied and verified against the real, reachable
 Postgres (Sapana's machine, reached via Tailscale — host `100.65.111.7`, see
-docs/DECISIONS.md #21). `tests/integration/test_ingestion_integration.py` runs the real
-ingestion pipeline against that live database and passes. Phase 3 (vision extraction +
-boilerplate dedupe) is next.
+docs/DECISIONS.md #21).
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
 and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
 only — see docs/ARCHITECTURE.md's export-layer section and docs/DECISIONS.md #17). Never
@@ -24,9 +25,17 @@ tool selection.
 
 ## Stack (do not substitute without asking)
 - API: FastAPI + Pydantic v2 · Python 3.11+
-- LLM access: LiteLLM only, via `backend/app/llm/client.py` — Groq (map pass), Gemini
-  (reduce pass + cloud vision), Ollama `qwen2.5vl:7b` (local vision fallback,
-  `USE_LOCAL_VISION=true`)
+- LLM access: LiteLLM only, via `backend/app/llm/client.py` — all via Ollama Cloud
+  (docs/DECISIONS.md #28, superseding the original Gemini/Groq plan at the user's
+  request): `gpt-oss:20b-cloud` (map pass), `gpt-oss:120b-cloud` (reduce pass),
+  `gemma4:cloud` (vision — confirmed working on real scanned tender pages). Local
+  `qwen2.5vl:7b` is the offline/air-gapped fallback (`USE_LOCAL_VISION=true`, not pulled
+  by default). One exception to "LiteLLM only": image-bearing Ollama calls bypass
+  litellm and hit Ollama's native `/api/chat` directly — litellm 1.56.5 has a verified
+  bug mishandling images for both its `ollama/` and `ollama_chat/` providers (see
+  `_complete_ollama_vision_native` in client.py and docs/DECISIONS.md #29). Still the
+  only file that talks to a provider — the workaround lives inside client.py, not
+  scattered elsewhere.
 - Orchestration: none / pipeline only — Celery + Redis implements the map (fan-out) →
   reduce (fan-in) shape via chains/chords. No LangGraph; there is no agent in this system.
 - Vector store: none in MVP. `pgvector` extension is enabled per the spec (avoids a later
@@ -40,7 +49,7 @@ tool selection.
   has no retrieval step.
 
 ## Hard rules
-1. NEVER import a provider SDK (`google.generativeai`, `groq`, an Ollama client) outside
+1. NEVER import a provider SDK, or call an Ollama endpoint directly, outside
    `backend/app/llm/client.py`. `app/pipeline/map_pass.py`, `reduce_pass.py`, and
    `extract_vision.py` call `app.llm.router.route(...)` then `app.llm.client.complete(...)`.
 2. NEVER put a prompt inline in Python. Prompts are versioned files in
@@ -69,7 +78,7 @@ tool selection.
 9. Use `async def` for I/O-bound routes (upload streaming, DB via async driver); plain
    `def` for CPU-bound pipeline work (PDF parsing, image rendering) — never wrap PyMuPDF/
    pdfplumber/Camelot calls in `async def`.
-10. Every external call (Gemini, Groq, Ollama, S3) has a timeout, bounded retries with
+10. Every external call (Ollama Cloud, S3) has a timeout, bounded retries with
     exponential backoff + jitter, and an explicit 429/rate-limit path. Free-tier quotas
     change — never hardcode an assumed limit in application logic.
 

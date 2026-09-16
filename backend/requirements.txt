@@ -29,6 +29,7 @@ camelot-py[cv]==1.0.0
 
 # LLM access (Phase 3-5)
 litellm==1.56.5
+requests==2.34.2  # app/llm/client.py's direct Ollama /api/chat call (docs/DECISIONS.md #28)
 
 # Observability
 langfuse==2.57.1

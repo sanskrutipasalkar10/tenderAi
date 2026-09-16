@@ -1,19 +1,25 @@
 """Real-Postgres integration test for the ingestion pipeline — closes the gap noted in
 docs/DECISIONS.md #19 (unit tests fake the DB session; this one uses a real database
-connection and a real SQLAlchemy Session).
+connection and a real SQLAlchemy Session), and now also exercises real vision
+extraction against Ollama Cloud (Phase 3) — unmocked, deliberately, since this file is
+explicitly for real-world validation and doesn't run in CI (see below).
 
 Requires DATABASE_URL in the environment/.env to point at a real, reachable Postgres
-with migrations applied (`alembic upgrade head`). Skipped automatically if no database
-is reachable, so `pytest tests/unit` (which never needs this) and CI (which has no
-Postgres configured yet) aren't affected — this file lives under tests/integration/ and
-is not part of the CI job's `pytest tests/unit` step.
+with migrations applied (`alembic upgrade head`), and a working Ollama Cloud login for
+the vision-extraction assertions. Skipped automatically if no database is reachable, so
+`pytest tests/unit` (which never needs this) and CI (which has no Postgres or Ollama
+configured) aren't affected — this file lives under tests/integration/ and is not part
+of the CI job's `pytest tests/unit` step.
 
-S3 is still mocked via moto (MinIO isn't set up yet) — this test specifically closes the
-DB gap, not the object-storage one. Every row it writes is cleaned up at the end
+S3 is still mocked via moto (MinIO isn't set up yet) — this test closes the DB and
+real-LLM gaps, not the object-storage one. Every row it writes is cleaned up at the end
 (ON DELETE CASCADE from `documents` handles pages/extracted_tables) — this runs against
-a real, shared team database, not a throwaway one.
+a real, shared team database, not a throwaway one. Cleanup uses the document's plain
+UUID captured up front, not the ORM object, so it's robust even if an assertion fails
+mid-test and leaves the session/object in an unexpected state.
 """
 
+import uuid
 from pathlib import Path
 
 import pytest
@@ -22,6 +28,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
+from app.models.boilerplate_cache import BoilerplateCache
 from app.models.document import Document
 from app.models.page import Page
 from app.services import ingestion
@@ -63,6 +70,23 @@ def _mock_friendly_s3(monkeypatch):
     objects.get_s3_client.cache_clear()
 
 
+def _delete_document(session, document_id: uuid.UUID) -> None:
+    """Cleanup by plain UUID, not the ORM object — robust even if a prior assertion
+    failure left the session/object in an unexpected state.
+
+    `boilerplate_cache.first_seen_document_id` has NO `ON DELETE CASCADE` in the
+    verbatim DDL (docs/DECISIONS.md #31) — a real, previously-unexercised FK
+    constraint, since Phase 2 never wrote to boilerplate_cache. A document that "first
+    saw" some content must have that cache row cleaned up (safe here: this test's
+    content is unique to its own run) before the document itself can be deleted.
+    """
+    session.query(BoilerplateCache).filter(
+        BoilerplateCache.first_seen_document_id == document_id
+    ).delete()
+    session.query(Document).filter(Document.id == document_id).delete()
+    session.commit()
+
+
 @mock_aws
 def test_run_ingestion_against_real_postgres(real_db_session) -> None:
     objects.get_s3_client().create_bucket(Bucket=settings.s3_bucket)
@@ -75,19 +99,20 @@ def test_run_ingestion_against_real_postgres(real_db_session) -> None:
     real_db_session.add(document)
     real_db_session.commit()
     real_db_session.refresh(document)
+    document_id = document.id  # captured now, used for cleanup regardless of what follows
 
-    document.original_pdf_s3_key = objects.upload_pdf(document.id, pdf_bytes)
+    document.original_pdf_s3_key = objects.upload_pdf(document_id, pdf_bytes)
     real_db_session.commit()
 
     try:
-        result = ingestion.run_ingestion(real_db_session, document.id)
+        result = ingestion.run_ingestion(real_db_session, document_id)
 
         assert result.status == "extracted"
         assert result.total_pages == 6
 
         pages = (
             real_db_session.query(Page)
-            .filter(Page.document_id == document.id)
+            .filter(Page.document_id == document_id)
             .order_by(Page.page_number)
             .all()
         )
@@ -103,14 +128,20 @@ def test_run_ingestion_against_real_postgres(real_db_session) -> None:
         table_page = pages[4]
         assert table_page.classification == "table"
 
+        # page 5 is scanned — Phase 3: a real, unmocked vision call to Ollama Cloud.
+        # Not asserting exact transcribed content (a real model's wording can vary
+        # slightly run to run) — asserting the *shape* of success: real text came
+        # back, hashed, with the expected extraction method.
         scanned_page = pages[5]
         assert scanned_page.classification == "scanned_image"
-        assert scanned_page.raw_text is None
+        assert scanned_page.raw_text is not None, "real vision extraction produced no text"
+        assert scanned_page.content_hash is not None
+        assert scanned_page.extraction_method == "vision_cloud"
+        assert scanned_page.confidence_score > 0.0
     finally:
         # Real, shared database — clean up what this test wrote. ON DELETE CASCADE
         # (migration 0001) removes pages/extracted_tables for this document.
-        real_db_session.delete(document)
-        real_db_session.commit()
+        _delete_document(real_db_session, document_id)
 
 
 def test_cleanup_left_no_trace(real_db_session) -> None:

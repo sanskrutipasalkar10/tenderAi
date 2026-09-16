@@ -16,9 +16,8 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket: str = "tenders"
 
-    # AI providers
-    gemini_api_key: str = ""
-    groq_api_key: str = ""
+    # AI providers — Ollama Cloud via a local daemon, no separate API key
+    # (docs/DECISIONS.md #28)
     use_local_vision: bool = False
     ollama_base_url: str = "http://localhost:11434"
 

@@ -138,8 +138,10 @@ success criteria CI/eval-gateable per Tier 2's requirement, and are flagged as t
 Expected volume: pilot — low tens of tenders/week, single internal bid team.
 Peak concurrency: low (few simultaneous uploads); Celery worker concurrency tuned for
 per-chunk parallelism within one document, not many concurrent documents.
-Monthly cost ceiling: $0 required (free-tier Gemini + Groq + optional local Ollama);
-paid tier only as an opt-in fallback if free-tier quotas are hit, never silently.
+Monthly cost ceiling: $0 required (Ollama Cloud free-tier models — see
+docs/DECISIONS.md #28 for why this superseded the original Gemini/Groq plan — plus an
+optional local Ollama fallback); paid tier only as an opt-in fallback if free-tier
+quotas are hit, never silently.
 Latency SLO: see p95 target above — advisory only, no real-time constraint.
 
 ## 10. Architecture decision

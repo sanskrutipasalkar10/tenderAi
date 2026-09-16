@@ -5,6 +5,11 @@ extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# UP017 (datetime.UTC alias): CI/Docker target 3.11 (target-version above), but local
+# dev on this machine happens to run 3.10, where datetime.UTC doesn't exist. Keeping
+# code on timezone.utc (valid on every version) avoids a real ImportError locally for
+# a purely cosmetic lint preference.
+ignore = ["UP017"]
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI's dependency-injection idiom (`= Depends(...)` as a default) is the intended
