@@ -78,6 +78,106 @@ class MapPassResult(BaseModel):
     risk_candidates: list[MapPassRiskCandidate] = Field(default_factory=list)
 
 
+# --- Reduce-pass output (app/pipeline/reduce_pass.py) — validates each module's model
+# response before it's trusted (hard rule 4). Severity (risk_finder) and decision/score
+# (go_no_go) are deliberately NOT part of what the model returns — CLAUDE.md hard rule 3
+# ("score-formula math are code, not prompt instructions") and the plan's own open
+# decision ("risk severity thresholds... encode as an explicit rubric, not model
+# discretion") — reduce_pass.py computes both in code from the model's more narrowly
+# interpretive output (which criteria pass/fail, which clause is which risk category). --
+
+
+GoNoGoStatus = Literal["pass", "fail"]
+GoNoGoDecision = Literal["Go", "Conditional-Go", "No-Go"]
+RiskSeverity = Literal["HIGH", "MEDIUM", "LOW"]
+SynopsisConfidence = Literal["high", "medium", "low"]
+
+
+class GoNoGoCriterionMatch(BaseModel):
+    criterion: str
+    required: str
+    company_value: str
+    status: GoNoGoStatus
+    page_ref: int = Field(ge=0)
+
+
+class GoNoGoLLMResult(BaseModel):
+    """What the model returns for go_no_go — criteria comparison only. `decision`,
+    `score`, and `gaps` are computed by reduce_pass.py from this, never asked of the
+    model directly.
+    """
+
+    criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+
+
+class GoNoGoResult(BaseModel):
+    """The full go_no_go document_analysis.result shape (docs/SPEC.md §6)."""
+
+    score: int = Field(ge=0, le=100)
+    decision: GoNoGoDecision
+    criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+
+
+class RiskFinderLLMRisk(BaseModel):
+    """What the model returns per risk — category/clause/page only. `severity` is
+    assigned by reduce_pass.py's code-based rubric, `verified` by citation_verify.py.
+    """
+
+    category: str
+    clause_summary: str
+    page_ref: int = Field(ge=0)
+
+
+class RiskFinderLLMResult(BaseModel):
+    risks: list[RiskFinderLLMRisk] = Field(default_factory=list)
+
+
+class RiskFinderRisk(BaseModel):
+    category: str
+    clause_summary: str
+    severity: RiskSeverity
+    page_ref: int = Field(ge=0)
+    verified: bool = False
+
+
+class RiskFinderResult(BaseModel):
+    """The full risk_finder document_analysis.result shape (docs/SPEC.md §6)."""
+
+    risk_score: int = Field(ge=0, le=100)
+    risks: list[RiskFinderRisk] = Field(default_factory=list)
+
+
+class SynopsisLLMResult(BaseModel):
+    """What the model returns for synopsis — prose fields only. `key_dates` and
+    `financials` are populated by reduce_pass.py directly from the already-verified,
+    page-cited map-pass facts (hard rule 7: zero hallucination tolerance for dates/
+    amounts) rather than asked of the model a second time.
+    """
+
+    title: str
+    issuing_authority: str
+    scope_summary: str
+    eligibility_summary: str
+    payment_terms_summary: str
+    confidence: SynopsisConfidence
+
+
+class SynopsisResult(BaseModel):
+    """The full synopsis document_analysis.result shape (docs/SPEC.md §6)."""
+
+    title: str
+    issuing_authority: str
+    key_dates: list[MapPassDateFact] = Field(default_factory=list)
+    financials: list[MapPassAmountFact] = Field(default_factory=list)
+    scope_summary: str
+    eligibility_summary: str
+    payment_terms_summary: str
+    confidence: SynopsisConfidence
+
+
 # --- API request/response schemas ------------------------------------------------
 
 
@@ -99,3 +199,17 @@ class DocumentStatusResponse(BaseModel):
     total_pages: int | None = None
     pages_processed: int = 0
     updated_at: datetime
+
+
+AnalysisModule = Literal["go_no_go", "synopsis", "risk_finder"]
+
+
+class DocumentAnalysisResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    document_id: UUID
+    module: AnalysisModule
+    result: dict
+    model_used: str | None = None
+    created_at: datetime

@@ -2,16 +2,26 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 4 (chunking + map pass) — built and verified with real Ollama Cloud
-calls against real chunks of a real tender document (docs/DECISIONS.md #34-36). Two
-real bugs found and fixed along the way: litellm doesn't enforce its own `timeout`
-against Ollama for large prompts (fixed by bypassing litellm entirely — every LLM call
-now goes through Ollama's native `/api/chat` via `requests`, whose timeout IS enforced),
-and the spec's own "~20-30 page chunks" guidance proved genuinely impractical at gpt-oss
-20B's real measured throughput — `CHUNK_SIZE_PAGES` is now 5, based on direct
-measurement, not the original guess. Phases 2/3 (migrations, vision extraction,
-dedupe) remain applied and verified against the real, reachable Postgres (Sapana's
-machine, reached via Tailscale — host `100.65.111.7`, see docs/DECISIONS.md #21).
+Current phase: 5 (reduce pass — go_no_go, synopsis, risk_finder — + citation
+re-verification) — built and verified with real Ollama Cloud calls against real,
+already-map-passed chunks of a real tender document (docs/DECISIONS.md #38-42).
+Decision/score/severity are deliberately computed in code from the model's narrower,
+genuinely-interpretive output, never asked of the model directly (hard rule 3) — see
+`app/pipeline/reduce_pass.py`'s module docstring. Two real bugs found via live
+validation, beyond the reduce-pass logic itself: structlog's default PrintLogger
+crashes on Windows the moment logged content contains a non-ASCII character (a normal
+occurrence in real tender/LLM text) — fixed by forcing UTF-8 stdout (docs/DECISIONS.md
+#41); and the naive synopsis date/amount dedup key produced 49 near-duplicate
+`key_dates` entries for a real ~9-fact document because tenders routinely restate the
+same date on every page — fixed by deduping on (label, value) only, keeping the first
+page_ref (docs/DECISIONS.md #42). The risk-severity rubric (`SEVERITY_BY_CATEGORY` in
+reduce_pass.py) is derived only from the small golden fixture set and does NOT yet
+cover real-world category diversity — a live run found 11/11 real risk categories on
+one real tender fell outside it (all defaulted to MEDIUM); treat this as a known gap
+pending domain-expert review, not a finished rubric. Phase 4 (chunking + map pass) and
+phases 2/3 (migrations, vision extraction, dedupe) remain applied and verified against
+the real, reachable Postgres (Sapana's machine, reached via Tailscale — host
+`100.65.111.7`, see docs/DECISIONS.md #21).
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
 and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
 only — see docs/ARCHITECTURE.md's export-layer section and docs/DECISIONS.md #17). Never
@@ -61,9 +71,9 @@ tool selection.
    `backend/app/llm/client.py`. `app/pipeline/map_pass.py`, `reduce_pass.py`, and
    `extract_vision.py` call `app.llm.router.route(...)` then `app.llm.client.complete(...)`.
 2. NEVER put a prompt inline in Python. Prompts are versioned files in
-   `backend/app/prompts/`, loaded via `registry.py`. There are exactly five: one vision
-   prompt, one map-pass prompt (both built), three reduce-pass prompts (`go_no_go`,
-   `synopsis`, `risk_finder` — Phase 5). When a prompt needs runtime content
+   `backend/app/prompts/`, loaded via `registry.py`. There are exactly five, all built:
+   one vision prompt, one map-pass prompt, three reduce-pass prompts (`go_no_go`,
+   `synopsis`, `risk_finder`). When a prompt needs runtime content
    substituted in, use `.replace("{content}", value)`, NOT `str.format()` — a prompt
    with a JSON example is full of literal `{braces}` that `.format()` misinterprets
    as placeholders (hit this for real in map_pass.py, docs/DECISIONS.md #37).
