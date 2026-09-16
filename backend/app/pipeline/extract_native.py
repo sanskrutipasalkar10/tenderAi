@@ -12,6 +12,7 @@ Two entry points:
 """
 
 import hashlib
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -62,6 +63,41 @@ def extract_page_text(page: fitz.Page) -> PageExtractionResult:
     )
 
 
+_SERIAL_NUMBER_RE = re.compile(r"\d+\.?")
+
+
+def _looks_like_data_row(row: list[str | None]) -> bool:
+    """Tender BOQ/schedule tables' first column is almost always a serial number
+    ('1', '19', '103') on data rows, and a text label ('Sl.No', 'Item No.') on the
+    real header row. A page whose first "dense" row after preamble stripping starts
+    with a bare number is a multi-page table's continuation page (the column-header
+    row is only printed once, on the table's first page) — see docs/DECISIONS.md #26.
+    """
+    first_cell = (row[0] or "").strip()
+    return bool(_SERIAL_NUMBER_RE.fullmatch(first_cell))
+
+
+def _find_first_dense_row(raw_table: list[list[str | None]]) -> tuple[int, bool]:
+    """Real tender tables routinely have title/preamble rows before the actual
+    column-header row (a section name, an enquiry number — each with exactly one
+    populated cell, the rest merged/empty; confirmed on a real BHEL tender document
+    where 130/135 tables had this shape, see docs/DECISIONS.md #26). Returns the index
+    of the first row where most columns are populated (i.e. the first row past any
+    such preamble), and whether that row is a genuine header (True) or itself looks
+    like a data row (False — see _looks_like_data_row), meaning this page is a
+    continuation page of a multi-page table with no header row of its own.
+    """
+    if not raw_table:
+        return 0, True
+    num_cols = len(raw_table[0])
+    threshold = max(2, num_cols // 2)
+    for i, row in enumerate(raw_table):
+        populated = sum(1 for cell in row if cell and cell.strip())
+        if populated >= threshold:
+            return i, not _looks_like_data_row(row)
+    return 0, True  # no row looks dense — fall back to the first row as a header
+
+
 def extract_table_structure(
     pdf_source: Path | bytes, page_number: int
 ) -> TableCellData | None:
@@ -92,6 +128,14 @@ def extract_table_structure(
     if not raw_table:
         return None
 
-    headers = [cell or "" for cell in raw_table[0]]
-    rows = [[cell or "" for cell in row] for row in raw_table[1:]]
+    row_idx, is_header = _find_first_dense_row(raw_table)
+    if is_header:
+        headers = [cell or "" for cell in raw_table[row_idx]]
+        rows = [[cell or "" for cell in row] for row in raw_table[row_idx + 1 :]]
+    else:
+        # Continuation page of a multi-page table — no header row printed here (see
+        # _looks_like_data_row). Every row from here on is real data; nothing is
+        # dropped, it's just correctly not mislabeled as a header.
+        headers = []
+        rows = [[cell or "" for cell in row] for row in raw_table[row_idx:]]
     return TableCellData(headers=headers, rows=rows)

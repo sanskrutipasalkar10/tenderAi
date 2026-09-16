@@ -18,7 +18,18 @@ MIN_TEXT_CHARS = 20
 MIN_HORIZONTAL_LINES_FOR_TABLE = 3
 MIN_VERTICAL_LINES_FOR_TABLE = 2
 LINE_TOLERANCE = 1.0
-MIN_LINE_LENGTH = 10.0
+# Calibrated against real tender PDFs (docs/DECISIONS.md #25): genuine table borders
+# measured 495-755pt (near-full page width/height) on a real BOQ table; a real
+# letterhead cover page with legacy vector-embedded fonts (Tamil-script glyphs drawn as
+# line strokes rather than real text — common in Indian government PDFs) produced
+# dozens of spurious short "lines" topping out at 45pt. 10pt (the original value) let
+# that noise through and false-positived the letterhead as "table". 60pt keeps 15pt of
+# margin above the measured noise ceiling while still clearing small legitimate tables
+# (a 2-3 row synthetic table's vertical border is ~78pt). Residual risk: a document with
+# larger-font title glyphs could plausibly produce longer artifact strokes than the one
+# real sample measured here — revisit (and consider a page-relative percentage instead
+# of an absolute point value) if real data produces another false positive.
+MIN_LINE_LENGTH = 60.0
 
 
 def _has_table_grid(page: fitz.Page) -> bool:

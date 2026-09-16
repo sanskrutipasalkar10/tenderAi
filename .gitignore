@@ -14,6 +14,11 @@ htmlcov/
 .env
 *.env.local
 
+# Real tender documents — business-sensitive, kept local only (docs/DECISIONS.md #27).
+# The synthetic eval fixtures under backend/evals/fixtures/ are unaffected (not PDFs
+# matched by this pattern's directory scope).
+documents/*.pdf
+
 # Node / Next.js
 node_modules/
 frontend/.next/
