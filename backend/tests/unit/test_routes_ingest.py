@@ -9,15 +9,28 @@ faking a DB round-trip here would just test the fake, not the route.
 import io
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_db
 from app.main import app
 
 client = TestClient(app)
+
+# A real, small, genuinely tender-like fixture — Phase 6 wires app.guardrails.
+# input_checks.validate_upload into this route for real, so "a valid PDF upload"
+# now means a real PDF that also passes the "is this a tender" heuristic, not
+# just PDF-shaped bytes.
+VALID_FIXTURE_PDF = (
+    Path(__file__).parent.parent.parent
+    / "evals"
+    / "fixtures"
+    / "pdfs"
+    / "fixture_01_nhai_road.pdf"
+).read_bytes()
 
 
 def _fake_refresh(obj) -> None:
@@ -35,8 +48,10 @@ def _override_db():
     fake_db = MagicMock()
     fake_db.refresh.side_effect = _fake_refresh
     app.dependency_overrides[get_db] = lambda: fake_db
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
     yield fake_db
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_upload_rejects_non_pdf_content_type() -> None:
@@ -69,6 +84,24 @@ def test_upload_rejects_oversized_file() -> None:
     assert "limit" in response.json()["message"].lower()
 
 
+def test_upload_rejects_content_that_does_not_look_like_a_tender() -> None:
+    # A structurally valid but content-free PDF — real bytes fitz can open, but with
+    # no tender-signal terms on the first few pages.
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), "This is just a random memo about lunch.")
+    non_tender_pdf = doc.tobytes()
+    doc.close()
+
+    response = client.post(
+        "/documents",
+        files={"file": ("memo.pdf", io.BytesIO(non_tender_pdf), "application/pdf")},
+    )
+    assert response.status_code == 422
+    assert "tender" in response.json()["message"].lower()
+
+
 @patch("app.api.routes_ingest.ingest_document_task")
 @patch("app.api.routes_ingest.upload_pdf")
 def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_task, _override_db) -> None:
@@ -76,7 +109,7 @@ def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_task, _overr
 
     response = client.post(
         "/documents",
-        files={"file": ("tender.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        files={"file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf")},
     )
 
     assert response.status_code == 201
@@ -88,3 +121,12 @@ def test_status_returns_404_for_unknown_document(_override_db) -> None:
     _override_db.get.return_value = None
     response = client.get(f"/documents/{uuid.uuid4()}/status")
     assert response.status_code == 404
+
+
+def test_protected_route_rejects_missing_token() -> None:
+    app.dependency_overrides.pop(get_current_user, None)  # this test wants the real dependency
+    try:
+        response = client.get(f"/documents/{uuid.uuid4()}/status")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: "test-user"

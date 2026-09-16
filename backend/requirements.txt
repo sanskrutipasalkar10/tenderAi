@@ -20,7 +20,12 @@ redis==5.2.1
 
 # Auth
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# NOT passlib[bcrypt] (docs/DECISIONS.md #43): passlib 1.7.4's bcrypt backend runs a
+# self-test (detect_wrap_bug) at import time that crashes against bcrypt>=4.1 with
+# "password cannot be longer than 72 bytes" — a real, confirmed incompatibility, not a
+# usage error. bcrypt's own hashpw/checkpw API works fine standalone, so app/core/
+# security.py calls it directly instead.
+bcrypt==5.0.0
 
 # PDF / vision pipeline (Phase 2-3)
 pymupdf==1.25.1

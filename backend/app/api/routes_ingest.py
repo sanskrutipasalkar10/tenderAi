@@ -2,8 +2,11 @@
 returning immediately per the spec's own priority (completeness over speed, but the API
 still shouldn't block on a 1000-page document). GET /documents lists uploads.
 
-Basic upload validation only (content-type, size) — the semantic "is this actually a
-tender" guardrail is Phase 6 (app/guardrails/input_checks.py), not this route.
+Content-type/size checks happen here (cheapest, no PDF parsing needed); everything
+that needs to actually open the PDF — corrupt/0-page rejection, the page ceiling, and
+the "is this a tender" heuristic — is app.guardrails.input_checks.validate_upload
+(Phase 6), called before a Document row is created or anything reaches S3/Celery, so a
+rejected upload costs nothing beyond the validation itself.
 """
 
 import uuid
@@ -15,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.dependencies import get_db
 from app.core.exceptions import DataQualityError
+from app.guardrails.input_checks import validate_upload
 from app.models.document import Document
 from app.models.schemas import DocumentUploadResponse
 from app.storage.objects import upload_pdf
@@ -41,6 +45,7 @@ def upload_document(
         raise DataQualityError(
             f"File exceeds the {settings.max_upload_size_mb}MB upload limit"
         )
+    validate_upload(pdf_bytes)
 
     document = Document(
         filename=file.filename or "upload.pdf",

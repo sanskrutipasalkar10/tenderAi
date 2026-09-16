@@ -2,26 +2,29 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 5 (reduce pass — go_no_go, synopsis, risk_finder — + citation
-re-verification) — built and verified with real Ollama Cloud calls against real,
-already-map-passed chunks of a real tender document (docs/DECISIONS.md #38-42).
-Decision/score/severity are deliberately computed in code from the model's narrower,
-genuinely-interpretive output, never asked of the model directly (hard rule 3) — see
-`app/pipeline/reduce_pass.py`'s module docstring. Two real bugs found via live
-validation, beyond the reduce-pass logic itself: structlog's default PrintLogger
-crashes on Windows the moment logged content contains a non-ASCII character (a normal
-occurrence in real tender/LLM text) — fixed by forcing UTF-8 stdout (docs/DECISIONS.md
-#41); and the naive synopsis date/amount dedup key produced 49 near-duplicate
-`key_dates` entries for a real ~9-fact document because tenders routinely restate the
-same date on every page — fixed by deduping on (label, value) only, keeping the first
-page_ref (docs/DECISIONS.md #42). The risk-severity rubric (`SEVERITY_BY_CATEGORY` in
-reduce_pass.py) is derived only from the small golden fixture set and does NOT yet
-cover real-world category diversity — a live run found 11/11 real risk categories on
-one real tender fell outside it (all defaulted to MEDIUM); treat this as a known gap
-pending domain-expert review, not a finished rubric. Phase 4 (chunking + map pass) and
-phases 2/3 (migrations, vision extraction, dedupe) remain applied and verified against
-the real, reachable Postgres (Sapana's machine, reached via Tailscale — host
-`100.65.111.7`, see docs/DECISIONS.md #21).
+Current phase: 6 (guardrails, auth, hardening) — JWT auth, upload-time guardrails, and
+the full adversarial eval gate are built and passing (docs/DECISIONS.md #43-46). Auth
+is a **single shared credential**, not a per-user table — the spec's own DDL has none
+and Tier 2 explicitly excludes full RBAC; this was asked of and confirmed by the user,
+not assumed (#44). `POST /token` (rate-limited via `app/cache/redis_cache.py`) issues a
+JWT; every `/documents*` route requires it (wired centrally in `main.py`, not
+per-route). `app/guardrails/input_checks.validate_upload` now runs before any
+Document row/S3 write: rejects corrupt/0-page PDFs, enforces `MAX_UPLOAD_PAGES`, and
+flags non-tender uploads via a keyword heuristic — which itself needed a real fix: a
+real non-tender fixture's own "this is NOT a tender" disclaimer defeated a plain
+substring check until a negation-phrase guard was added (#46). Also fixed: `passlib
+[bcrypt]` crashes at import time against the bcrypt version this project resolves to
+(a real, confirmed incompatibility) — bypassed by calling `bcrypt` directly, same
+"route around a broken library" pattern as the Phase 4 litellm fix (#43).
+`ClassificationError`/`CitationVerificationError` remain unused in the failure taxonomy
+by deliberate design (see their docstrings in `core/exceptions.py`), not an oversight.
+Phase 5 (reduce pass) and Phase 4 (chunking + map pass) remain built and verified with
+real Ollama Cloud calls (docs/DECISIONS.md #32-42) — see those rows for the several
+real bugs found along the way (litellm's unenforced timeout, chunk-size/throughput
+mismatch, a Windows stdout encoding crash, an overly-narrow risk-severity rubric still
+pending domain-expert review). Phases 2/3 (migrations, vision extraction, dedupe)
+remain applied and verified against the real, reachable Postgres (Sapana's machine,
+reached via Tailscale — host `100.65.111.7`, see docs/DECISIONS.md #21).
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
 and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
 only — see docs/ARCHITECTURE.md's export-layer section and docs/DECISIONS.md #17). Never

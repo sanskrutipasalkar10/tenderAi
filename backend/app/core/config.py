@@ -24,10 +24,18 @@ class Settings(BaseSettings):
     # Queue / cache
     redis_url: str = "redis://localhost:6379/0"
 
-    # Auth
+    # Auth — single shared credential, not a per-user table (docs/DECISIONS.md #44):
+    # the spec's own DDL has no users table and explicitly excludes full RBAC ("JWT
+    # auth only; single internal bid-team user class"). auth_password_hash is a bcrypt
+    # hash, never the plaintext password — the default below hashes the same
+    # "change-me-in-every-environment" placeholder convention as jwt_secret_key.
     jwt_secret_key: str = "change-me-in-every-environment"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
+    auth_username: str = "admin"
+    auth_password_hash: str = "$2b$12$m/yzg/ptf/eyxWW5KhX4vufwQB5jRo8J4JpfxGcSHsb1RNMRR4cBK"
+    login_rate_limit_attempts: int = 5
+    login_rate_limit_window_seconds: int = 300
 
     # Tracing
     langfuse_public_key: str = ""
