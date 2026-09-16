@@ -10,9 +10,9 @@ import hashlib
 import fitz
 
 from app.core.exceptions import ProviderError
-from app.llm.client import complete
+from app.llm.client import complete_for_task
 from app.llm.router import route
-from app.models.schemas import PageExtractionResult
+from app.models.schemas import ExtractionMethod, PageExtractionResult
 from app.prompts.registry import load_prompt
 
 # 100 DPI keeps the base64-encoded PNG small enough to fit in context (150 DPI
@@ -35,45 +35,54 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(_normalize(text).encode("utf-8")).hexdigest()
 
 
+def _extraction_method_for(model: str) -> ExtractionMethod:
+    """Every Ollama Cloud model tag this project uses ends in ":cloud"; every local
+    fallback/primary tag doesn't (docs/DECISIONS.md #32) — a clean, correct signal,
+    unlike checking for the literal substring "local" (no model string contains it).
+    """
+    return "vision_cloud" if model.endswith(":cloud") else "vision_local"
+
+
+def _empty_result(page_number: int, extraction_method: ExtractionMethod) -> PageExtractionResult:
+    return PageExtractionResult(
+        page_number=page_number,
+        classification="scanned_image",
+        extraction_method=extraction_method,
+        raw_text=None,
+        content_hash=None,
+        confidence_score=0.0,
+    )
+
+
 def extract_page_via_vision(page: fitz.Page) -> PageExtractionResult:
     """Renders the page to an image and transcribes it via the vision-capable model
-    app.llm.router routes to. Always returns a result, even on provider failure
-    (confidence 0.0, extraction_method still recorded) — CLAUDE.md's zero-page-drop
-    invariant: this stage failing is not the same as this page being skipped.
+    app.llm.router routes to (Ollama Cloud, falling back to a local model on failure —
+    see app.llm.client.complete_for_task and docs/DECISIONS.md #32). Always returns a
+    result, even on provider failure (confidence 0.0, extraction_method still
+    recorded) — CLAUDE.md's zero-page-drop invariant: this stage failing is not the
+    same as this page being skipped.
     """
     pixmap = page.get_pixmap(dpi=RENDER_DPI)
     image_bytes = pixmap.tobytes("png")
-
-    model = route("vision")
     prompt = load_prompt("vision", "v1_vision_extract")
 
     try:
-        raw_response = complete(model=model, prompt=prompt, image_bytes=image_bytes)
-    except ProviderError:
-        return PageExtractionResult(
-            page_number=page.number,
-            classification="scanned_image",
-            extraction_method="vision_local" if "local" in model else "vision_cloud",
-            raw_text=None,
-            content_hash=None,
-            confidence_score=0.0,
+        raw_response, model_used = complete_for_task(
+            "vision", prompt, image_bytes=image_bytes
         )
+    except ProviderError:
+        # Both primary and fallback failed — record against the primary model name,
+        # since that's what a human debugging this would look up first.
+        return _empty_result(page.number, _extraction_method_for(route("vision")))
 
     text = raw_response.strip()
     if not text or text == NO_TEXT_SENTINEL:
-        return PageExtractionResult(
-            page_number=page.number,
-            classification="scanned_image",
-            extraction_method="vision_local" if "local" in model else "vision_cloud",
-            raw_text=None,
-            content_hash=None,
-            confidence_score=0.0,
-        )
+        return _empty_result(page.number, _extraction_method_for(model_used))
 
     return PageExtractionResult(
         page_number=page.number,
         classification="scanned_image",
-        extraction_method="vision_local" if "local" in model else "vision_cloud",
+        extraction_method=_extraction_method_for(model_used),
         raw_text=text,
         content_hash=_content_hash(text),
         confidence_score=VISION_CONFIDENCE,

@@ -25,13 +25,18 @@ tool selection.
 
 ## Stack (do not substitute without asking)
 - API: FastAPI + Pydantic v2 · Python 3.11+
-- LLM access: LiteLLM only, via `backend/app/llm/client.py` — all via Ollama Cloud
+- LLM access: LiteLLM only, via `backend/app/llm/client.py` — primary is Ollama Cloud
   (docs/DECISIONS.md #28, superseding the original Gemini/Groq plan at the user's
   request): `gpt-oss:20b-cloud` (map pass), `gpt-oss:120b-cloud` (reduce pass),
-  `gemma4:cloud` (vision — confirmed working on real scanned tender pages). Local
-  `qwen2.5vl:7b` is the offline/air-gapped fallback (`USE_LOCAL_VISION=true`, not pulled
-  by default). One exception to "LiteLLM only": image-bearing Ollama calls bypass
-  litellm and hit Ollama's native `/api/chat` directly — litellm 1.56.5 has a verified
+  `gemma4:cloud` (vision — confirmed working on real scanned tender pages). Every task
+  also auto-falls-back to a genuinely local Ollama model on cloud failure
+  (`qwen2.5-coder:7b` for map/reduce, `qwen2.5vl:7b` for vision — docs/DECISIONS.md
+  #32) — call `client.complete_for_task(task, ...)` for this, not
+  `complete(router.route(task), ...)` directly, unless a caller specifically needs one
+  exact model with no fallback. `USE_LOCAL_VISION=true` makes the local vision model
+  primary instead (fully offline/air-gapped work — no fallback attempted from there).
+  One exception to "LiteLLM only": image-bearing Ollama calls bypass litellm and hit
+  Ollama's native `/api/chat` directly — litellm 1.56.5 has a verified
   bug mishandling images for both its `ollama/` and `ollama_chat/` providers (see
   `_complete_ollama_vision_native` in client.py and docs/DECISIONS.md #29). Still the
   only file that talks to a provider — the workaround lives inside client.py, not

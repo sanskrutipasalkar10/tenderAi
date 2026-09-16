@@ -21,6 +21,7 @@ from litellm.exceptions import (
 from app.core.config import settings
 from app.core.exceptions import ProviderError
 from app.core.logging import get_logger
+from app.llm import router
 
 logger = get_logger(__name__)
 
@@ -102,6 +103,64 @@ def complete(
         raise ProviderError(f"{model} call failed: {exc}") from exc
 
     return response.choices[0].message.content
+
+
+def complete_for_task(
+    task: router.Task,
+    prompt: str,
+    *,
+    image_bytes: bytes | None = None,
+    response_format: dict | None = None,
+    temperature: float = 0.0,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    num_retries: int = DEFAULT_NUM_RETRIES,
+) -> tuple[str, str]:
+    """Calls the primary (Ollama Cloud) model for `task`; on failure, automatically
+    falls back to a genuinely local Ollama model for the same task (docs/DECISIONS.md
+    #32) rather than letting a transient cloud outage/rate-limit stop the pipeline.
+
+    Returns (response_text, model_that_actually_served_it) — callers that record
+    provenance (e.g. extract_vision.py's extraction_method: vision_cloud vs
+    vision_local) need to know which one actually ran, not just which was attempted
+    first.
+
+    This is what pipeline code (extract_vision.py, and map_pass.py/reduce_pass.py in
+    later phases) should call — not complete() + router.route() directly — unless a
+    caller specifically needs one exact model with no fallback (e.g. a test).
+    """
+    primary = router.route(task)
+    try:
+        return complete(
+            primary,
+            prompt,
+            image_bytes=image_bytes,
+            response_format=response_format,
+            temperature=temperature,
+            timeout=timeout,
+            num_retries=num_retries,
+        ), primary
+    except ProviderError as exc:
+        fallback = router.route_fallback(task)
+        if fallback == primary:
+            # settings.use_local_vision already made the primary the local model —
+            # nothing further to fall back to.
+            raise
+        logger.warning(
+            "llm.falling_back_to_local",
+            task=task,
+            primary=primary,
+            fallback=fallback,
+            error=str(exc),
+        )
+        return complete(
+            fallback,
+            prompt,
+            image_bytes=image_bytes,
+            response_format=response_format,
+            temperature=temperature,
+            timeout=timeout,
+            num_retries=num_retries,
+        ), fallback
 
 
 def _complete_ollama_vision_native(

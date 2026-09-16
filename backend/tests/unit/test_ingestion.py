@@ -64,14 +64,17 @@ class FakeSession:
 
 
 @mock_aws
-@patch("app.pipeline.extract_vision.complete")
-def test_run_ingestion_processes_every_page_and_sets_status(mock_complete) -> None:
+@patch("app.pipeline.extract_vision.complete_for_task")
+def test_run_ingestion_processes_every_page_and_sets_status(mock_complete_for_task) -> None:
     # Vision extraction (page 5, scanned) is mocked per CLAUDE.md hard rule 8 — a unit
     # test must cost $0, be deterministic, and not depend on Ollama being reachable
     # (it isn't, in CI). Real vision-call correctness is covered by
     # evals/test_extraction_completeness.py and manual validation against Ollama
     # Cloud, not here.
-    mock_complete.return_value = "Mocked signature page transcription."
+    mock_complete_for_task.return_value = (
+        "Mocked signature page transcription.",
+        "ollama_chat/gemma4:cloud",
+    )
 
     objects.get_s3_client().create_bucket(Bucket=settings.s3_bucket)
     pdf_bytes = (FIXTURES_DIR / "fixture_01_nhai_road.pdf").read_bytes()
@@ -104,7 +107,7 @@ def test_run_ingestion_processes_every_page_and_sets_status(mock_complete) -> No
     assert scanned_page.classification == "scanned_image"
     assert scanned_page.raw_text == "Mocked signature page transcription."
     assert scanned_page.extraction_method == "vision_cloud"
-    mock_complete.assert_called_once()
+    mock_complete_for_task.assert_called_once()
 
 
 @mock_aws
