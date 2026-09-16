@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     company_profile,
     document,
     document_analysis,
+    export_bronze_silver_gold,
     extracted_table,
     page,
 )

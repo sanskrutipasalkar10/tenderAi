@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.api import routes_health
+from app.api import routes_health, routes_ingest, routes_status
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 
@@ -18,5 +18,7 @@ app = FastAPI(
 
 register_exception_handlers(app)
 app.include_router(routes_health.router)
+app.include_router(routes_ingest.router)
+app.include_router(routes_status.router)
 
 Instrumentator().instrument(app).expose(app)

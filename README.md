@@ -8,9 +8,12 @@ Full spec: [`docs/SPEC.md`](docs/SPEC.md). Architecture decisions and rationale:
 [`docs/DECISIONS.md`](docs/DECISIONS.md). Rules for anyone (human or agent) working in
 this repo: [`CLAUDE.md`](CLAUDE.md).
 
-**Status:** Phase 0 (scaffold) complete, Phase 1 (golden eval set) in place with a
-synthetic v1 dataset — pending real tender/company-profile examples. See the
-implementation plan for the full phase-gated build order.
+**Status:** Phase 0 (scaffold) and Phase 1 (golden eval set, synthetic v1) complete.
+Phase 2 (ingestion/classification/native extraction) is built and unit-tested — real
+Postgres integration tests are pending a live database (colleague's credentials, not yet
+received). Two DB schemas now exist: our page-level schema is canonical, a colleague's
+bronze/silver/gold schema is a derived export/reporting layer — see
+`docs/ARCHITECTURE.md`. See the implementation plan for the full phase-gated build order.
 
 ## Architecture, in one line
 
@@ -33,6 +36,10 @@ Grafana. Apply the database schema:
 ```bash
 docker compose exec api alembic upgrade head
 ```
+
+This applies both migrations: `0001` (our own page-level schema — the system of record)
+and `0002` (a colleague's bronze/silver/gold export/reporting schema — derived, not
+authoritative; see `docs/ARCHITECTURE.md`).
 
 Verify:
 - `http://localhost:8000/health` — liveness
@@ -68,9 +75,10 @@ This is a v1, synthetic set (23 generated fixtures, 144 examples across page
 classification, extraction, go/no-go, risk-finder, and adversarial cases — see
 `docs/DECISIONS.md` row 14). Real anonymized tender excerpts and the actual company
 profile, once available, get added as further fixtures via the same generator, not a
-replacement of it. `pytest evals/` is expected to fail with import errors until the
-pipeline phases that produce what it tests (Phase 2 onward) are built — that's the
-correct state until then.
+replacement of it. `evals/test_classification.py` passes as of Phase 2 (100% on the
+synthetic set — see `docs/DECISIONS.md` row 18 for the caveat that means less than it
+sounds like); the rest of `pytest evals/` is expected to keep failing with import errors
+until the later pipeline phases that produce what they test are built.
 
 ## Project layout
 

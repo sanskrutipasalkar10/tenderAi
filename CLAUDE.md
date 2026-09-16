@@ -2,9 +2,14 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 1 (golden eval set). Do not build ahead of the current phase — Phase 2
-(ingestion/classification) starts once real tender/company-profile examples are folded
-into the eval set and Phase 1 is reviewed.
+Current phase: 2 (ingestion, classification, native extraction — done pending real-DB
+integration tests, see docs/DECISIONS.md #19). Do not build ahead of the current phase —
+Phase 3 (vision extraction + boilerplate dedupe) starts once Postgres credentials arrive
+and Phase 2's ingestion flow is verified against a real database.
+There are now TWO schemas: our own page-level schema (migration 0001, system of record)
+and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
+only — see docs/ARCHITECTURE.md's export-layer section and docs/DECISIONS.md #17). Never
+treat the bronze/silver/gold tables as authoritative or as a citation source.
 This is a pipeline (map-reduce), not an agent. There is no retrieval step — every page of
 every uploaded tender is read in full. Do not add `app/rag/`, `app/agents/`, or a
 LangGraph dependency without an explicit ask; none of the three modules need dynamic
