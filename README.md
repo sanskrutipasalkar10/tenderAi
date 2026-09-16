@@ -8,12 +8,12 @@ Full spec: [`docs/SPEC.md`](docs/SPEC.md). Architecture decisions and rationale:
 [`docs/DECISIONS.md`](docs/DECISIONS.md). Rules for anyone (human or agent) working in
 this repo: [`CLAUDE.md`](CLAUDE.md).
 
-**Status:** Phase 0 (scaffold) and Phase 1 (golden eval set, synthetic v1) complete.
-Phase 2 (ingestion/classification/native extraction) is built and unit-tested — real
-Postgres integration tests are pending a live database (colleague's credentials, not yet
-received). Two DB schemas now exist: our page-level schema is canonical, a colleague's
-bronze/silver/gold schema is a derived export/reporting layer — see
-`docs/ARCHITECTURE.md`. See the implementation plan for the full phase-gated build order.
+**Status:** Phases 0-2 complete. Phase 2 (ingestion/classification/native extraction) is
+verified against a real, live Postgres (reached over Tailscale) — migrations applied,
+real integration test passing, not just unit-tested. Two DB schemas now exist: our
+page-level schema is canonical, a colleague's bronze/silver/gold schema is a derived
+export/reporting layer — see `docs/ARCHITECTURE.md`. See the implementation plan for the
+full phase-gated build order.
 
 ## Architecture, in one line
 
@@ -40,6 +40,12 @@ docker compose exec api alembic upgrade head
 This applies both migrations: `0001` (our own page-level schema — the system of record)
 and `0002` (a colleague's bronze/silver/gold export/reporting schema — derived, not
 authoritative; see `docs/ARCHITECTURE.md`).
+
+**Using the shared dev Postgres instead of a local one:** the team's current dev database
+runs on a colleague's machine, reachable over Tailscale (not the public internet) —
+connect to that tailnet, then point `DATABASE_URL` in `backend/.env` at that host instead
+of `localhost`. `pgvector` is not installed there; migration 0001 tolerates that (see
+`docs/DECISIONS.md` #22) since no MVP table needs it yet.
 
 Verify:
 - `http://localhost:8000/health` — liveness

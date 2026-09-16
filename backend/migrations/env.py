@@ -3,20 +3,10 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+# Importing app.models registers every ORM model with Base.metadata (see
+# app/models/__init__.py) — required for autogenerate and for foreign-key resolution.
+import app.models  # noqa: F401
 from app.core.config import settings
-
-# Import all models so Base.metadata is fully populated for autogenerate.
-from app.models import (  # noqa: F401
-    boilerplate_cache,
-    chunk,
-    chunk_extraction,
-    company_profile,
-    document,
-    document_analysis,
-    export_bronze_silver_gold,
-    extracted_table,
-    page,
-)
 from app.storage.db import Base
 
 config = context.config

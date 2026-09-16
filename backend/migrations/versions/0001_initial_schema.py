@@ -8,6 +8,7 @@ Create Date: 2026-09-15
 """
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -19,7 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 DDL = """
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "vector";
 
 CREATE TABLE company_profiles (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -129,6 +129,19 @@ DROP TABLE IF EXISTS company_profiles;
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    try:
+        with bind.begin_nested():
+            bind.execute(sa.text('CREATE EXTENSION IF NOT EXISTS "vector"'))
+    except Exception:
+        # pgvector isn't installed on every Postgres instance (confirmed absent from
+        # pg_available_extensions on the shared dev instance) and no MVP table/column
+        # uses it — see docs/SPEC.md §2.7. Non-fatal: enable it for real once a feature
+        # actually needs it, per docs/DECISIONS.md.
+        print(
+            "WARNING: 'vector' extension unavailable on this Postgres instance — "
+            "skipped. No MVP table uses it; see docs/SPEC.md §2.7."
+        )
     op.execute(DDL)
 
 

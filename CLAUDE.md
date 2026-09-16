@@ -2,14 +2,21 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 2 (ingestion, classification, native extraction — done pending real-DB
-integration tests, see docs/DECISIONS.md #19). Do not build ahead of the current phase —
-Phase 3 (vision extraction + boilerplate dedupe) starts once Postgres credentials arrive
-and Phase 2's ingestion flow is verified against a real database.
+Current phase: 2 — CLOSED. Both migrations (0001 canonical schema, 0002 colleague's
+bronze/silver/gold export layer) are applied and verified against a real, reachable
+Postgres (Sapana's machine, reached via Tailscale — host `100.65.111.7`, see
+docs/DECISIONS.md #21). `tests/integration/test_ingestion_integration.py` runs the real
+ingestion pipeline against that live database and passes. Phase 3 (vision extraction +
+boilerplate dedupe) is next.
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
 and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
 only — see docs/ARCHITECTURE.md's export-layer section and docs/DECISIONS.md #17). Never
 treat the bronze/silver/gold tables as authoritative or as a citation source.
+`pgvector` is NOT actually installed on this Postgres instance (docs/DECISIONS.md #22) —
+migration 0001 tolerates that gracefully, but don't write any code that assumes `vector`
+is available until it's confirmed installed wherever this runs.
+Real DB credentials live only in `backend/.env` (gitignored, never commit them) — see
+`.env.example` for the shape, not the values.
 This is a pipeline (map-reduce), not an agent. There is no retrieval step — every page of
 every uploaded tender is read in full. Do not add `app/rag/`, `app/agents/`, or a
 LangGraph dependency without an explicit ask; none of the three modules need dynamic

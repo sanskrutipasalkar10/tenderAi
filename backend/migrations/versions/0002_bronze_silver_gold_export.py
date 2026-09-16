@@ -9,6 +9,11 @@ not built yet; this migration only creates the tables so the shape exists.
 Do not redesign this schema — if it needs to change, that's a conversation with whoever
 owns it downstream, not a unilateral edit here.
 
+Tables use `CREATE TABLE IF NOT EXISTS` (the only deviation from the colleague's DDL
+verbatim) — the shared dev database already had `company_master_profile` (with data)
+created independently before this migration first ran against it. Column/type/constraint
+definitions are unchanged; this only guards against re-creation.
+
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-09-16
@@ -29,7 +34,7 @@ DDL = """
 -- 1. COMPANY MASTER PROFILE (The "Company Brain" / MDM)
 -- Stores the unified JSON representation of the company's capabilities.
 -- ============================================================================
-CREATE TABLE company_master_profile (
+CREATE TABLE IF NOT EXISTS company_master_profile (
     company_id SERIAL PRIMARY KEY,
     company_name VARCHAR(255) NOT NULL,
     profile_data JSONB NOT NULL,
@@ -40,7 +45,7 @@ CREATE TABLE company_master_profile (
 -- 2. BRONZE LAYER (Raw Tender Ingestion)
 -- Stores the raw, unstructured text extracted from the Tender PDF in chunks.
 -- ============================================================================
-CREATE TABLE tender_bronze_raw (
+CREATE TABLE IF NOT EXISTS tender_bronze_raw (
     bronze_chunk_id SERIAL PRIMARY KEY,
     tender_id VARCHAR(255) NOT NULL,   -- A unique ID for the uploaded PDF (e.g., "TENDER-123")
     company_id INT NOT NULL REFERENCES company_master_profile(company_id) ON DELETE CASCADE,
@@ -54,7 +59,7 @@ CREATE TABLE tender_bronze_raw (
 -- 3. SILVER LAYER (Structured Tender Facts)
 -- Stores the clean JSON facts extracted from the Bronze chunks by the cheap AI.
 -- ============================================================================
-CREATE TABLE tender_silver_extracted (
+CREATE TABLE IF NOT EXISTS tender_silver_extracted (
     silver_fact_id SERIAL PRIMARY KEY,
     tender_id VARCHAR(255) NOT NULL,
     bronze_chunk_id INT NOT NULL REFERENCES tender_bronze_raw(bronze_chunk_id) ON DELETE CASCADE,
@@ -68,7 +73,7 @@ CREATE TABLE tender_silver_extracted (
 -- 4. GOLD LAYER (Final Go/No-Go & Risk Matrix)
 -- Stores the final judgment comparing Silver Requirements vs Company Profile.
 -- ============================================================================
-CREATE TABLE tender_gold_analysis (
+CREATE TABLE IF NOT EXISTS tender_gold_analysis (
     gold_analysis_id SERIAL PRIMARY KEY,
     tender_id VARCHAR(255) NOT NULL UNIQUE, -- One final report per tender
     company_id INT NOT NULL REFERENCES company_master_profile(company_id) ON DELETE CASCADE,
