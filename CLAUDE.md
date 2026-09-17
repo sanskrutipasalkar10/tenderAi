@@ -2,35 +2,35 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 7 (performance & cost). **Known, flagged, NOT silently resolved finding
-(docs/DECISIONS.md #50): the spec's proposed "<15 min p95 for a 500-page document" is
-not achievable at current free-tier Ollama Cloud throughput.** Real measurement (9 real
-map-pass calls across 2 real documents, mean ~38s/chunk, range 5.8-135.5s) extrapolates
-to ~20-35 minutes for the map pass alone on a 500-page document (125 chunks) at the
-concurrency tuned below — and the real 372-page NHAI fixture (93 chunks) already lands
-right at ~15 min with zero margin, before reduce pass or any vision-heavy pages. This
-was surfaced to the user, not quietly patched over or declared passing — flag it again
-if asked "does the pipeline meet its latency target."
-Celery now splits into two queues (docs/DECISIONS.md #47): "llm" (map/reduce/ingestion
-— real Ollama calls) at concurrency=4, "default" (chunk-building — no LLM call) at
-concurrency=8; `task_acks_late`+`worker_prefetch_multiplier=1` set globally so a long
-LLM task can't be silently lost on worker crash or starve other workers via prefetch.
-The concurrency=4 choice is evidence-based: 4 concurrent real Ollama Cloud calls
-finished in 6.6s total (real speedup over serial) but each call's own latency rose
-under that load — real partial concurrency, not unlimited. S3 and Redis calls now have
-explicit connect/read timeouts (#48) — CLAUDE.md hard rule 10 only actually covered
-Ollama calls before this. `scripts/report_cost.py` reports per-document token/request
-volume (the real cost proxy while Ollama Cloud stays free-tier, #49) — real run found a
-consistent ~730 tokens/page across two real documents of very different size (40 and
-372 pages).
+Full narrative build history (what was built, what broke against real content, how it
+was fixed, phase by phase) is `docs/DEVELOPMENT_HISTORY.md` — read that before
+`docs/DECISIONS.md` if you want the story, not just the table.
+Current phase: 8 (observability, frontend, ship) — in progress. Langfuse tracing is
+built and wired (docs/DECISIONS.md #52-53): self-hosted (`docker-compose.yml`'s
+`langfuse`+`langfuse-postgres` services, NOT Langfuse Cloud — asked of and confirmed
+by the user, since a trace's input/output is real prompt content, i.e. real tender
+text, the same sensitivity class as the never-committed real PDFs). One hook,
+`app.llm.client.complete_for_task` wrapped in `app.core.tracing.trace_llm_call`,
+traces map/reduce/vision automatically with zero changes to those three files. Not
+yet built: Prometheus/Grafana real dashboards (the services exist in docker-compose
+but aren't wired to real metrics yet), `docs/RUNBOOK.md` (still Phase 0's placeholder),
+the Next.js frontend. Docker isn't available in this dev sandbox, so the Langfuse
+service definition is unverified end-to-end (no real trace has been seen in its UI) —
+the SDK-level instrumentation itself is tested for real (mocked client, 163 tests
+green), but full validation needs an actual `docker-compose up` on a machine that has
+Docker, or Sapana's machine.
+**Known, flagged, NOT silently resolved finding (docs/DECISIONS.md #50): the spec's
+proposed "<15 min p95 for a 500-page document" is not achievable at current free-tier
+Ollama Cloud throughput** (~20-35 min extrapolated for the map pass alone at the
+concurrency tuned in Phase 7). Flag this again if asked "does the pipeline meet its
+latency target" — it does not yet, and this was surfaced to the user, not patched over.
 `ClassificationError`/`CitationVerificationError` remain unused in the failure taxonomy
 by deliberate design (see their docstrings in `core/exceptions.py`), not an oversight.
-Phases 4-6 (chunking/map pass, reduce pass, auth/guardrails) remain built and verified
-with real Ollama Cloud calls (docs/DECISIONS.md #32-46) — see those rows for the
-several real bugs found along the way (litellm's unenforced timeout, a Windows stdout
-encoding crash, a passlib/bcrypt incompatibility, an overly-narrow risk-severity rubric
-still pending domain-expert review). Phases 2/3 (migrations, vision extraction, dedupe)
-remain applied and verified against the real, reachable Postgres (Sapana's machine,
+Phases 4-7 (chunking/map pass, reduce pass, auth/guardrails, performance/cost) remain
+built and verified with real Ollama Cloud calls (docs/DECISIONS.md #32-51) — see
+`docs/DEVELOPMENT_HISTORY.md` for the full story of real bugs found and fixed along the
+way. Phases 2/3 (migrations, vision extraction, dedupe) remain applied and verified
+against the real, reachable Postgres (Sapana's machine,
 reached via Tailscale — host `100.65.111.7`, see docs/DECISIONS.md #21).
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
 and a colleague's bronze/silver/gold export schema (migration 0002, derived/reporting
@@ -70,8 +70,11 @@ tool selection.
   migration) but no table has a vector column and no query uses it. Do not build retrieval.
 - Data: PostgreSQL + SQLAlchemy · Cache/broker: Redis
 - Object storage: MinIO (dev) → S3/R2 (prod), via `backend/app/storage/objects.py`
-- Tracing: Langfuse (self-hosted alongside the docker-compose stack) — chosen over
-  LangSmith because this project uses neither LangChain nor LangGraph
+- Tracing: Langfuse, self-hosted alongside the docker-compose stack (docs/DECISIONS.md
+  #52) — never Langfuse Cloud or LangSmith Cloud, since a trace's input/output is real
+  tender text. Wired via `app/core/tracing.py`, one hook in `app.llm.client.
+  complete_for_task` (#53) — no per-pipeline-stage instrumentation needed. No-ops
+  cleanly when `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are unset
 - Evals: custom pytest harness over `backend/evals/datasets/*.jsonl` (DeepEval-style
   assertions). Ragas is not used — its metrics are retrieval-specific and this pipeline
   has no retrieval step.

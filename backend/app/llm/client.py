@@ -27,6 +27,7 @@ import requests
 from app.core.config import settings
 from app.core.exceptions import ProviderError
 from app.core.logging import get_logger
+from app.core.tracing import trace_llm_call
 from app.llm import router
 
 logger = get_logger(__name__)
@@ -93,40 +94,58 @@ def complete_for_task(
     This is what pipeline code (extract_vision.py, map_pass.py, and reduce_pass.py)
     should call — not complete() + router.route() directly — unless a caller
     specifically needs one exact model with no fallback (e.g. a test).
+
+    Traced via app.core.tracing (docs/DECISIONS.md #52) — one Langfuse generation per
+    call, tagged with `task` and whether the fallback path was used, regardless of
+    outcome.
     """
-    primary = router.route(task)
-    try:
-        return complete(
-            primary,
-            prompt,
-            image_bytes=image_bytes,
-            response_format=response_format,
-            temperature=temperature,
-            timeout=timeout,
-            num_retries=num_retries,
-        ), primary
-    except ProviderError as exc:
-        fallback = router.route_fallback(task)
-        if fallback == primary:
-            # settings.use_local_vision already made the primary the local model —
-            # nothing further to fall back to.
-            raise
-        logger.warning(
-            "llm.falling_back_to_local",
-            task=task,
-            primary=primary,
-            fallback=fallback,
-            error=str(exc),
-        )
-        return complete(
-            fallback,
-            prompt,
-            image_bytes=image_bytes,
-            response_format=response_format,
-            temperature=temperature,
-            timeout=timeout,
-            num_retries=num_retries,
-        ), fallback
+    with trace_llm_call(task=task, prompt=prompt) as trace_result:
+        primary = router.route(task)
+        try:
+            output = complete(
+                primary,
+                prompt,
+                image_bytes=image_bytes,
+                response_format=response_format,
+                temperature=temperature,
+                timeout=timeout,
+                num_retries=num_retries,
+            )
+            trace_result["model"] = primary
+            trace_result["output"] = output
+            return output, primary
+        except ProviderError as exc:
+            fallback = router.route_fallback(task)
+            if fallback == primary:
+                # settings.use_local_vision already made the primary the local model —
+                # nothing further to fall back to.
+                trace_result["error"] = str(exc)
+                raise
+            logger.warning(
+                "llm.falling_back_to_local",
+                task=task,
+                primary=primary,
+                fallback=fallback,
+                error=str(exc),
+            )
+            try:
+                output = complete(
+                    fallback,
+                    prompt,
+                    image_bytes=image_bytes,
+                    response_format=response_format,
+                    temperature=temperature,
+                    timeout=timeout,
+                    num_retries=num_retries,
+                )
+                trace_result["model"] = fallback
+                trace_result["output"] = output
+                trace_result["fallback_used"] = True
+                return output, fallback
+            except ProviderError as fallback_exc:
+                trace_result["error"] = str(fallback_exc)
+                trace_result["fallback_used"] = True
+                raise
 
 
 def _complete_ollama_native(
