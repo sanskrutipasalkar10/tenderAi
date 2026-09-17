@@ -230,3 +230,37 @@ class PageContentResponse(BaseModel):
     raw_text: str | None = None
     confidence_score: float | None = None
     has_image: bool
+
+
+# --- company_profiles — CRUD for the reduce pass's go_no_go input (docs/DECISIONS.md
+# #51/#59). Fields match the real DDL exactly (docs/SPEC.md §3.1); the same
+# REQUIRED_PROFILE_FIELDS list app.pipeline.reduce_pass checks at analysis time
+# (company_name, annual_turnover, certifications, sectors, max_capacity_pct) is not
+# re-enforced here — an incomplete profile is valid to *save* (a work in progress,
+# same as docs/DECISIONS.md #51's real seed data), it just can't run a full go_no_go
+# until it's complete; that check happens where it actually matters, at analysis time. -
+
+
+class CompanyProfileWrite(BaseModel):
+    company_name: str
+    annual_turnover: dict | None = None
+    certifications: list | None = None
+    past_projects: list | None = None
+    geographic_presence: list | None = None
+    sectors: list | None = None
+    max_capacity_pct: float | None = None
+
+
+class CompanyProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    company_name: str
+    annual_turnover: dict | None = None
+    certifications: list | None = None
+    past_projects: list | None = None
+    geographic_presence: list | None = None
+    sectors: list | None = None
+    max_capacity_pct: float | None = None
+    created_at: datetime
+    updated_at: datetime

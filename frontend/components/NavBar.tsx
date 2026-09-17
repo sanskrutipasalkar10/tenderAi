@@ -15,9 +15,19 @@ export default function NavBar() {
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <Link href="/documents" className="font-semibold">
-          Tender AI Platform
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/documents" className="font-semibold">
+            Tender AI Platform
+          </Link>
+          {authed && (
+            <Link
+              href="/company-profile"
+              className="text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+            >
+              Company profiles
+            </Link>
+          )}
+        </div>
         {authed && (
           <button
             type="button"

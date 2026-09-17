@@ -24,4 +24,10 @@ class CompanyProfile(Base):
     sectors: Mapped[list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"))
     max_capacity_pct: Mapped[float | None] = mapped_column(Numeric)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    # onupdate is an ORM-level behavior (touches the column on every SQLAlchemy
+    # UPDATE), not a schema change — the column itself is exactly the DDL's, applied
+    # verbatim. Without this, routes_company_profiles.py's PUT endpoint would leave
+    # updated_at silently stale forever.
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now(), nullable=False
+    )

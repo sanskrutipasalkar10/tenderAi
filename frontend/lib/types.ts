@@ -100,3 +100,29 @@ export interface PageContentResponse {
   confidence_score: number | null;
   has_image: boolean;
 }
+
+// --- company_profiles --------------------------------------------------------
+
+export interface CompanyProfilePastProject {
+  name: string;
+  client: string | null;
+  value: number | null;
+  year: number | null;
+  sector: string | null;
+}
+
+export interface CompanyProfileWrite {
+  company_name: string;
+  annual_turnover: Record<string, number> | null;
+  certifications: string[] | null;
+  past_projects: CompanyProfilePastProject[] | null;
+  geographic_presence: string[] | null;
+  sectors: string[] | null;
+  max_capacity_pct: number | null;
+}
+
+export interface CompanyProfileResponse extends CompanyProfileWrite {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}

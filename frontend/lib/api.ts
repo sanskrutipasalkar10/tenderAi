@@ -1,6 +1,8 @@
 import { clearToken, getToken, setToken } from "./auth";
 import type {
   AnalysisModule,
+  CompanyProfileResponse,
+  CompanyProfileWrite,
   DocumentAnalysisResponse,
   DocumentStatusResponse,
   DocumentUploadResponse,
@@ -119,4 +121,33 @@ export async function getPageImageBlob(documentId: string, pageNumber: number): 
   const response = await fetch(getPageImageUrl(documentId, pageNumber), { headers });
   if (!response.ok) throw new ApiError(response.status, "Could not load page image");
   return response.blob();
+}
+
+export function listCompanyProfiles(): Promise<CompanyProfileResponse[]> {
+  return apiFetch("/company-profiles");
+}
+
+export function getCompanyProfile(profileId: string): Promise<CompanyProfileResponse> {
+  return apiFetch(`/company-profiles/${profileId}`);
+}
+
+export function createCompanyProfile(
+  payload: CompanyProfileWrite,
+): Promise<CompanyProfileResponse> {
+  return apiFetch("/company-profiles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCompanyProfile(
+  profileId: string,
+  payload: CompanyProfileWrite,
+): Promise<CompanyProfileResponse> {
+  return apiFetch(`/company-profiles/${profileId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
