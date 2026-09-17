@@ -1,6 +1,12 @@
 """S3-compatible object storage client — MinIO locally, S3/R2 in prod, same API either
 way (docs/DECISIONS.md #11). Only pointers (`documents.original_pdf_s3_key`,
 `pages.image_s3_key`) live in Postgres; the binaries live here.
+
+Explicit connect/read timeouts (docs/DECISIONS.md #47) — botocore's `retries={"mode":
+"standard"}` already gives exponential backoff+jitter and a 429-equivalent
+(503 SlowDown) path, but without an explicit timeout it falls back to botocore's own
+default, never verified against this project's real payload sizes (hard rule 10:
+every external call needs an explicit timeout, not an inherited default).
 """
 
 import uuid
@@ -28,7 +34,10 @@ def get_s3_client():
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=settings.s3_secret_key,
         config=BotoConfig(
-            signature_version="s3v4", retries={"max_attempts": 3, "mode": "standard"}
+            signature_version="s3v4",
+            retries={"max_attempts": 3, "mode": "standard"},  # botocore's own backoff+jitter
+            connect_timeout=10,
+            read_timeout=60,  # a 500-page PDF upload/download is the slow case here
         ),
         **kwargs,
     )

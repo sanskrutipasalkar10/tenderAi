@@ -62,9 +62,33 @@ services:
     volumes:
       - ./backend:/app
 
-  celery-worker:
+  # Two worker pools, not one (docs/DECISIONS.md #47): map/reduce/ingestion are real
+  # Ollama calls, measured (9 real chunks, 2 real documents) at ~6-135s each with
+  # per-call latency degrading under concurrent load — concurrency=4 balances real
+  # throughput against that degradation and free-tier rate-limit risk. Chunk-building
+  # has no LLM call and must never queue behind a slow "llm" task for a shared slot.
+  celery-worker-llm:
     build: ./backend
-    command: celery -A app.workers.celery_app worker --loglevel=info
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q llm --concurrency=4
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://tender:tender@postgres:5432/tender_platform
+      S3_ENDPOINT_URL: http://minio:9000
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  celery-worker-default:
+    build: ./backend
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q default --concurrency=8
     env_file:
       - .env
     environment:

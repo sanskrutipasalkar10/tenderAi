@@ -14,7 +14,12 @@ import redis
 from app.core.config import settings
 from app.core.exceptions import RateLimitError
 
-_client = redis.from_url(settings.redis_url, decode_responses=True)
+_client = redis.from_url(
+    settings.redis_url,
+    decode_responses=True,
+    socket_connect_timeout=5,
+    socket_timeout=5,
+)
 
 
 def check_and_increment(key: str, *, limit: int, window_seconds: int) -> None:

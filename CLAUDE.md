@@ -2,27 +2,34 @@
 
 ## Context
 Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISIONS.md`.
-Current phase: 6 (guardrails, auth, hardening) — JWT auth, upload-time guardrails, and
-the full adversarial eval gate are built and passing (docs/DECISIONS.md #43-46). Auth
-is a **single shared credential**, not a per-user table — the spec's own DDL has none
-and Tier 2 explicitly excludes full RBAC; this was asked of and confirmed by the user,
-not assumed (#44). `POST /token` (rate-limited via `app/cache/redis_cache.py`) issues a
-JWT; every `/documents*` route requires it (wired centrally in `main.py`, not
-per-route). `app/guardrails/input_checks.validate_upload` now runs before any
-Document row/S3 write: rejects corrupt/0-page PDFs, enforces `MAX_UPLOAD_PAGES`, and
-flags non-tender uploads via a keyword heuristic — which itself needed a real fix: a
-real non-tender fixture's own "this is NOT a tender" disclaimer defeated a plain
-substring check until a negation-phrase guard was added (#46). Also fixed: `passlib
-[bcrypt]` crashes at import time against the bcrypt version this project resolves to
-(a real, confirmed incompatibility) — bypassed by calling `bcrypt` directly, same
-"route around a broken library" pattern as the Phase 4 litellm fix (#43).
+Current phase: 7 (performance & cost). **Known, flagged, NOT silently resolved finding
+(docs/DECISIONS.md #50): the spec's proposed "<15 min p95 for a 500-page document" is
+not achievable at current free-tier Ollama Cloud throughput.** Real measurement (9 real
+map-pass calls across 2 real documents, mean ~38s/chunk, range 5.8-135.5s) extrapolates
+to ~20-35 minutes for the map pass alone on a 500-page document (125 chunks) at the
+concurrency tuned below — and the real 372-page NHAI fixture (93 chunks) already lands
+right at ~15 min with zero margin, before reduce pass or any vision-heavy pages. This
+was surfaced to the user, not quietly patched over or declared passing — flag it again
+if asked "does the pipeline meet its latency target."
+Celery now splits into two queues (docs/DECISIONS.md #47): "llm" (map/reduce/ingestion
+— real Ollama calls) at concurrency=4, "default" (chunk-building — no LLM call) at
+concurrency=8; `task_acks_late`+`worker_prefetch_multiplier=1` set globally so a long
+LLM task can't be silently lost on worker crash or starve other workers via prefetch.
+The concurrency=4 choice is evidence-based: 4 concurrent real Ollama Cloud calls
+finished in 6.6s total (real speedup over serial) but each call's own latency rose
+under that load — real partial concurrency, not unlimited. S3 and Redis calls now have
+explicit connect/read timeouts (#48) — CLAUDE.md hard rule 10 only actually covered
+Ollama calls before this. `scripts/report_cost.py` reports per-document token/request
+volume (the real cost proxy while Ollama Cloud stays free-tier, #49) — real run found a
+consistent ~730 tokens/page across two real documents of very different size (40 and
+372 pages).
 `ClassificationError`/`CitationVerificationError` remain unused in the failure taxonomy
 by deliberate design (see their docstrings in `core/exceptions.py`), not an oversight.
-Phase 5 (reduce pass) and Phase 4 (chunking + map pass) remain built and verified with
-real Ollama Cloud calls (docs/DECISIONS.md #32-42) — see those rows for the several
-real bugs found along the way (litellm's unenforced timeout, chunk-size/throughput
-mismatch, a Windows stdout encoding crash, an overly-narrow risk-severity rubric still
-pending domain-expert review). Phases 2/3 (migrations, vision extraction, dedupe)
+Phases 4-6 (chunking/map pass, reduce pass, auth/guardrails) remain built and verified
+with real Ollama Cloud calls (docs/DECISIONS.md #32-46) — see those rows for the
+several real bugs found along the way (litellm's unenforced timeout, a Windows stdout
+encoding crash, a passlib/bcrypt incompatibility, an overly-narrow risk-severity rubric
+still pending domain-expert review). Phases 2/3 (migrations, vision extraction, dedupe)
 remain applied and verified against the real, reachable Postgres (Sapana's machine,
 reached via Tailscale — host `100.65.111.7`, see docs/DECISIONS.md #21).
 There are now TWO schemas: our own page-level schema (migration 0001, system of record)
