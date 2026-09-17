@@ -19,6 +19,11 @@ htmlcov/
 # matched by this pattern's directory scope).
 documents/*.pdf
 
+# Real company_profiles seed data — real financial figures/client names for a real
+# company (docs/DECISIONS.md #51), same reasoning as the tender PDFs above: business-
+# sensitive, kept local + in the real (non-public) Postgres only, repo is public.
+backend/scripts/seed_data/
+
 # Node / Next.js
 node_modules/
 frontend/.next/
