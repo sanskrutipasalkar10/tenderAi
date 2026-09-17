@@ -140,6 +140,22 @@ services:
       langfuse-postgres:
         condition: service_healthy
 
+  # Real per-task/per-queue Celery metrics (docs/DECISIONS.md #54) — consumes the task
+  # events celery_app.py now emits (worker_send_task_events) directly off the Redis
+  # broker and exposes them as Prometheus metrics. Deliberately NOT custom
+  # prometheus_client instrumentation inside the worker processes: Celery's prefork
+  # pool runs multiple OS processes per worker, which needs prometheus_client's
+  # multiprocess mode to do correctly — a well-known sharp edge, and this
+  # purpose-built, actively maintained exporter avoids it entirely.
+  celery-exporter:
+    image: danihodovic/celery-exporter
+    command: ["--broker-url=redis://redis:6379/0"]
+    ports:
+      - "9808:9808"
+    depends_on:
+      redis:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus
     ports:
@@ -148,6 +164,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
       - api
+      - celery-exporter
 
   grafana:
     image: grafana/grafana
@@ -156,6 +173,8 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
 

@@ -5,7 +5,7 @@ an LLM-bound task back on the "default" queue (sized for cheap, fast work) and n
 else would catch it.
 """
 
-from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT
+from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
 from app.workers.tasks_chunk import build_chunks_task
 from app.workers.tasks_ingest import ingest_document_task
 from app.workers.tasks_map import map_pass_chunk_task
@@ -41,3 +41,11 @@ def test_ingestion_task_has_no_fixed_time_limit() -> None:
     # pages/vision calls can legitimately exceed any single chunk/module's ceiling.
     assert ingest_document_task.soft_time_limit is None
     assert ingest_document_task.time_limit is None
+
+
+def test_task_events_are_enabled_for_the_celery_exporter() -> None:
+    # celery-exporter (docker-compose.yml, docs/DECISIONS.md #54) reads these events
+    # off the broker to produce real Prometheus metrics — without this config, its
+    # /metrics endpoint would just be permanently empty, silently.
+    assert celery_app.conf.worker_send_task_events is True
+    assert celery_app.conf.task_send_sent_event is True

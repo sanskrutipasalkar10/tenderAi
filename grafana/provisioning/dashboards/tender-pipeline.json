@@ -1,0 +1,91 @@
+{
+  "title": "Tender AI Platform",
+  "uid": "tender-ai-platform",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "utc",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP request rate by route",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[5m])) by (handler)",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP p95 latency by route",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, handler))",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Celery task success rate by task",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "docs/DECISIONS.md #47's llm/default queue split, per task name — e.g. run_map_pass_for_chunk vs. build_chunks_for_document",
+      "targets": [
+        {
+          "expr": "sum(rate(celery_task_succeeded_total[5m])) by (task)",
+          "legendFormat": "{{task}} (succeeded)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Celery task failure rate by task",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "sum(rate(celery_task_failed_total[5m])) by (task)",
+          "legendFormat": "{{task}} (failed)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Celery task duration p95 by task (docs/DECISIONS.md #47/#50)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "description": "The real per-chunk map-pass latency this dashboard should surface live (see docs/DECISIONS.md #50's 5.8s-135.5s measured range) — this panel is what a future latency-target decision should actually be checked against, not a one-off script.",
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(celery_task_runtime_seconds_bucket[5m])) by (le, task))",
+          "legendFormat": "{{task}} p95"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      }
+    ]
+  }
+}

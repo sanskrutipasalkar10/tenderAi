@@ -38,6 +38,12 @@ celery_app.conf.update(
     # finishing any of them, starving other workers. 1 means a worker only picks up
     # its next task once free.
     worker_prefetch_multiplier=1,
+    # Emits task-sent/-started/-succeeded/-failed events onto the broker (docs/
+    # DECISIONS.md #54) — consumed by the celery-exporter sidecar in docker-compose.yml
+    # to produce real per-queue/per-task Prometheus metrics, without any custom
+    # multiprocess-safe metrics code in the worker processes themselves.
+    worker_send_task_events=True,
+    task_send_sent_event=True,
 )
 
 # Per-chunk/per-module time limits — set on tasks_map.py/tasks_reduce.py individually,

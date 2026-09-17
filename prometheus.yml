@@ -5,3 +5,10 @@ scrape_configs:
   - job_name: "tender-api"
     static_configs:
       - targets: ["api:8000"]
+
+  # Real per-task/per-queue Celery metrics (docs/DECISIONS.md #54) — task counts,
+  # durations, and queue lengths for both the "llm" and "default" queues (docs/
+  # DECISIONS.md #47), sourced from celery-exporter, not the API's own /metrics.
+  - job_name: "celery"
+    static_configs:
+      - targets: ["celery-exporter:9808"]

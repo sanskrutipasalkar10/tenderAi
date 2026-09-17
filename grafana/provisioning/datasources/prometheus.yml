@@ -1,0 +1,11 @@
+# Auto-provisions Prometheus as Grafana's default datasource on container start —
+# docs/DECISIONS.md #54. No manual "add datasource" click-through needed.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

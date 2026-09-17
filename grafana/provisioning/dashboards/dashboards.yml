@@ -1,0 +1,11 @@
+# Tells Grafana to load every .json dashboard in this same directory on startup —
+# docs/DECISIONS.md #54.
+apiVersion: 1
+
+providers:
+  - name: "Tender AI Platform"
+    folder: ""
+    type: file
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
