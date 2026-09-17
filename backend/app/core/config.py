@@ -46,5 +46,15 @@ class Settings(BaseSettings):
     max_upload_pages: int = 2000
     max_upload_size_mb: int = 500
 
+    # CORS — the Next.js frontend (frontend/, Phase 8) runs on a different origin
+    # (:3000) than this API (:8000); without an explicit allowlist here, every
+    # browser request from it is blocked by the browser itself before this app ever
+    # sees it. Comma-separated, not a JSON list, so it's a plain string in .env.
+    cors_allowed_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+
 
 settings = Settings()

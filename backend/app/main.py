@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api import (
@@ -9,6 +10,7 @@ from app.api import (
     routes_pages,
     routes_status,
 )
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
@@ -22,6 +24,19 @@ app = FastAPI(
         "a synopsis, and a page-cited risk list."
     ),
     version="0.1.0",
+)
+
+# The Next.js frontend (frontend/, docs/DECISIONS.md #56) runs on a different origin
+# than this API — without this, every browser request from it is blocked by the
+# browser itself (same-origin policy), before this app ever sees the request. Found
+# by actually driving the frontend against this API in a real browser, not by
+# inspection — see docs/DECISIONS.md #56.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 register_exception_handlers(app)

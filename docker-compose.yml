@@ -50,6 +50,11 @@ services:
       DATABASE_URL: postgresql://tender:tender@postgres:5432/tender_platform
       S3_ENDPOINT_URL: http://minio:9000
       REDIS_URL: redis://redis:6379/0
+      # Both the dockerized frontend (below, host port 3002) and a locally-run
+      # `npm run dev` frontend (host port 3000) need to be allowed — found for real
+      # (docs/DECISIONS.md #56) that a missing entry here silently blocks every
+      # browser request with no server-side error to debug from.
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002
     ports:
       - "8000:8000"
     depends_on:
@@ -61,6 +66,19 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Browser-visible (baked in at build time, not a secret) — the browser talks
+        # to the API at this host-mapped address, not api:8000 (docker-internal,
+        # unreachable from the host's browser).
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3002:3000"
+    depends_on:
+      - api
 
   # Two worker pools, not one (docs/DECISIONS.md #47): map/reduce/ingestion are real
   # Ollama calls, measured (9 real chunks, 2 real documents) at ~6-135s each with

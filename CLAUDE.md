@@ -5,20 +5,24 @@ Read `docs/SPEC.md` before any task. Architecture rationale is in `docs/DECISION
 Full narrative build history (what was built, what broke against real content, how it
 was fixed, phase by phase) is `docs/DEVELOPMENT_HISTORY.md` — read that before
 `docs/DECISIONS.md` if you want the story, not just the table.
-Current phase: 8 (observability, frontend, ship) — in progress. Langfuse tracing is
-built and wired (docs/DECISIONS.md #52-53): self-hosted (`docker-compose.yml`'s
-`langfuse`+`langfuse-postgres` services, NOT Langfuse Cloud — asked of and confirmed
-by the user, since a trace's input/output is real prompt content, i.e. real tender
-text, the same sensitivity class as the never-committed real PDFs). One hook,
-`app.llm.client.complete_for_task` wrapped in `app.core.tracing.trace_llm_call`,
-traces map/reduce/vision automatically with zero changes to those three files. Not
-yet built: Prometheus/Grafana real dashboards (the services exist in docker-compose
-but aren't wired to real metrics yet), `docs/RUNBOOK.md` (still Phase 0's placeholder),
-the Next.js frontend. Docker isn't available in this dev sandbox, so the Langfuse
-service definition is unverified end-to-end (no real trace has been seen in its UI) —
-the SDK-level instrumentation itself is tested for real (mocked client, 163 tests
-green), but full validation needs an actual `docker-compose up` on a machine that has
-Docker, or Sapana's machine.
+Current phase: 8 (observability, frontend, ship) — in progress, most of it built.
+Langfuse tracing (docs/DECISIONS.md #52-53), Celery/Prometheus/Grafana metrics (#54),
+`docs/RUNBOOK.md` filled in for real, the page-content API the citation UI needs (#55),
+and the `frontend/` Next.js app itself (#56-57) are all built. Docker isn't available
+in this dev sandbox, so the Langfuse/Grafana/celery-exporter docker-compose service
+definitions remain unverified end-to-end (no real trace/dashboard has actually been
+seen rendered) — but **the frontend was different: Node/npm/Playwright ARE available
+here, so it was actually driven in a real headless browser against the real running
+backend and real Postgres data**, not just built and assumed correct. That caught two
+real bugs neither `next build`/`tsc`/ESLint would have: an `AuthGuard` hydration race
+that redirected a genuinely logged-in user back to `/login`, and a `CitationLink`
+modal producing invalid HTML (nested inside a `<p>`) wherever it was used inline —
+both fixed, see #57. It also caught a real, load-bearing gap in the *backend*: no CORS
+middleware existed at all, so the browser silently blocked every frontend request with
+no server-side error to debug from (#56) — fixed with an explicit, `.env`-driven
+origin allowlist. `frontend/` still needs a `company-profile` page (creating/editing a
+profile from the UI — `scripts/seed_company_profile.py` is the only way today) and a
+real (not directly-minted) end-to-end login test once Redis is reachable locally.
 **Known, flagged, NOT silently resolved finding (docs/DECISIONS.md #50): the spec's
 proposed "<15 min p95 for a 500-page document" is not achievable at current free-tier
 Ollama Cloud throughput** (~20-35 min extrapolated for the map pass alone at the
@@ -47,6 +51,10 @@ LangGraph dependency without an explicit ask; none of the three modules need dyn
 tool selection.
 
 ## Stack (do not substitute without asking)
+- Frontend: Next.js 16 (App Router) + Tailwind v4, `frontend/` — single shared
+  credential in `localStorage`, no server-side session (docs/DECISIONS.md #44). Only
+  place that calls the backend is `lib/api.ts`, mirroring `app/llm/client.py`'s
+  one-file pattern
 - API: FastAPI + Pydantic v2 · Python 3.11+
 - LLM access: `backend/app/llm/client.py` is the ONLY file that talks to a provider.
   Primary is Ollama Cloud (docs/DECISIONS.md #28, superseding the original Gemini/Groq
