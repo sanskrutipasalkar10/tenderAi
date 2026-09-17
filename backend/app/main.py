@@ -1,7 +1,14 @@
 from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.api import routes_analysis, routes_auth, routes_health, routes_ingest, routes_status
+from app.api import (
+    routes_analysis,
+    routes_auth,
+    routes_health,
+    routes_ingest,
+    routes_pages,
+    routes_status,
+)
 from app.core.dependencies import get_current_user
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
@@ -27,5 +34,6 @@ _auth_dependency = [Depends(get_current_user)]
 app.include_router(routes_ingest.router, dependencies=_auth_dependency)
 app.include_router(routes_status.router, dependencies=_auth_dependency)
 app.include_router(routes_analysis.router, dependencies=_auth_dependency)
+app.include_router(routes_pages.router, dependencies=_auth_dependency)
 
 Instrumentator().instrument(app).expose(app)

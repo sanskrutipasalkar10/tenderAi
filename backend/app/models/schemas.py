@@ -213,3 +213,20 @@ class DocumentAnalysisResponse(BaseModel):
     result: dict
     model_used: str | None = None
     created_at: datetime
+
+
+class PageContentResponse(BaseModel):
+    """The citation-verification UI's actual payload (docs/SPEC.md's HITL note) — what
+    a user sees after clicking a `page_ref`. `has_image` tells the frontend whether to
+    also fetch GET .../pages/{page_number}/image, rather than embedding image bytes
+    (base64) in this JSON response.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    page_number: int
+    classification: PageClassification
+    extraction_method: ExtractionMethod | None = None
+    raw_text: str | None = None
+    confidence_score: float | None = None
+    has_image: bool
