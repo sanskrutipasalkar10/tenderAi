@@ -57,6 +57,15 @@ celery_app.conf.update(
 LLM_TASK_SOFT_TIME_LIMIT = 600
 LLM_TASK_TIME_LIMIT = 660
 
-# Task modules are registered here as each pipeline phase adds them
-# (tasks_ingest, tasks_chunk, tasks_map, tasks_reduce, tasks_pipeline — Phases 2-5).
-celery_app.autodiscover_tasks(["app.workers"])
+# Explicit import, not celery_app.autodiscover_tasks(["app.workers"]) (what this line
+# used to be): autodiscover_tasks defaults to looking for a submodule literally named
+# `tasks.py` under each listed package, which never matches this project's
+# tasks_<stage>.py naming — a real, previously-undiscovered gap found while actually
+# starting `celery -A app.workers.celery_app worker` for the first time against a real
+# broker: the startup banner's [tasks] list came up completely empty, meaning no
+# worker started this way could ever have executed anything sent to it, silently
+# (docs/DECISIONS.md #61). Importing tasks_pipeline is sufficient — it already imports
+# every stage task module (tasks_ingest, tasks_chunk, tasks_map, tasks_reduce), which
+# is what actually registers each `@celery_app.task`-decorated function on this app's
+# task registry.
+from app.workers import tasks_pipeline  # noqa: E402,F401

@@ -12,8 +12,11 @@ facts rather than full page text.
 
 import uuid
 
+from app.core.logging import get_logger
 from app.storage.db import SessionLocal
 from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
+
+logger = get_logger(__name__)
 
 _TASK_KWARGS = {
     "bind": True,
@@ -25,8 +28,22 @@ _TASK_KWARGS = {
 }
 
 
+def _retry_or_give_up(self, exc: Exception, module: str, document_id: str) -> None:
+    """Shared by all three module tasks below — same reasoning as
+    tasks_map.py's map_pass_chunk_task (docs/DECISIONS.md #62): these three tasks are
+    the header of a Celery chord (tasks_pipeline.py's _start_reduce_pass), and one
+    permanently-failed module must not block mark_document_ready from ever firing for
+    the other two, which may well have succeeded.
+    """
+    if self.request.retries < self.max_retries:
+        raise self.retry(exc=exc) from exc
+    logger.error(
+        f"reduce_pass.{module}_permanently_failed", document_id=document_id, error=str(exc)
+    )
+
+
 @celery_app.task(name="run_go_no_go_for_document", **_TASK_KWARGS)
-def go_no_go_task(self, document_id: str) -> str:
+def go_no_go_task(self, document_id: str) -> str | None:
     from app.models.company_profile import CompanyProfile
     from app.models.document import Document
     from app.pipeline.reduce_pass import run_go_no_go
@@ -46,13 +63,14 @@ def go_no_go_task(self, document_id: str) -> str:
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
-        raise self.retry(exc=exc) from exc
+        _retry_or_give_up(self, exc, "go_no_go", document_id)
+        return None
     finally:
         db.close()
 
 
 @celery_app.task(name="run_synopsis_for_document", **_TASK_KWARGS)
-def synopsis_task(self, document_id: str) -> str:
+def synopsis_task(self, document_id: str) -> str | None:
     from app.models.document import Document
     from app.pipeline.reduce_pass import run_synopsis
 
@@ -65,13 +83,14 @@ def synopsis_task(self, document_id: str) -> str:
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
-        raise self.retry(exc=exc) from exc
+        _retry_or_give_up(self, exc, "synopsis", document_id)
+        return None
     finally:
         db.close()
 
 
 @celery_app.task(name="run_risk_finder_for_document", **_TASK_KWARGS)
-def risk_finder_task(self, document_id: str) -> str:
+def risk_finder_task(self, document_id: str) -> str | None:
     from app.models.document import Document
     from app.pipeline.reduce_pass import run_risk_finder
 
@@ -84,7 +103,8 @@ def risk_finder_task(self, document_id: str) -> str:
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
-        raise self.retry(exc=exc) from exc
+        _retry_or_give_up(self, exc, "risk_finder", document_id)
+        return None
     finally:
         db.close()
 

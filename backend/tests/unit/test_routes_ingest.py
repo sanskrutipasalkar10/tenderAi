@@ -102,9 +102,9 @@ def test_upload_rejects_content_that_does_not_look_like_a_tender() -> None:
     assert "tender" in response.json()["message"].lower()
 
 
-@patch("app.api.routes_ingest.ingest_document_task")
+@patch("app.api.routes_ingest.enqueue_full_pipeline")
 @patch("app.api.routes_ingest.upload_pdf")
-def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_task, _override_db) -> None:
+def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_enqueue, _override_db) -> None:
     mock_upload_pdf.return_value = "documents/fake/original.pdf"
 
     response = client.post(
@@ -114,7 +114,7 @@ def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_task, _overr
 
     assert response.status_code == 201
     mock_upload_pdf.assert_called_once()
-    mock_task.delay.assert_called_once()
+    mock_enqueue.assert_called_once()
 
 
 def test_status_returns_404_for_unknown_document(_override_db) -> None:

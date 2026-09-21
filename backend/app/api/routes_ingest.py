@@ -22,7 +22,7 @@ from app.guardrails.input_checks import validate_upload
 from app.models.document import Document
 from app.models.schemas import DocumentUploadResponse
 from app.storage.objects import upload_pdf
-from app.workers.tasks_ingest import ingest_document_task
+from app.workers.tasks_pipeline import enqueue_full_pipeline
 
 router = APIRouter(prefix="/documents", tags=["ingestion"])
 
@@ -60,7 +60,7 @@ def upload_document(
     db.commit()
     db.refresh(document)
 
-    ingest_document_task.delay(str(document.id))
+    enqueue_full_pipeline(str(document.id))
     return document
 
 

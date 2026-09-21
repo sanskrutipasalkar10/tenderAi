@@ -180,28 +180,38 @@ class SynopsisResult(BaseModel):
 
 # --- API request/response schemas ------------------------------------------------
 
+AnalysisModule = Literal["go_no_go", "synopsis", "risk_finder"]
+
 
 class DocumentUploadResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     filename: str
+    issuing_authority: str | None = None
     status: DocumentStatus
     total_pages: int | None = None
     uploaded_at: datetime
 
 
 class DocumentStatusResponse(BaseModel):
+    """Extended (docs/DECISIONS.md #60) beyond the original page-level progress with
+    chunk/module-level detail — all computed live from existing tables (`chunks`,
+    `chunk_extractions`, `document_analysis`), no new tables or columns — so the
+    frontend can show real map-pass/reduce-pass progress instead of the document
+    appearing to sit motionless during "analyzing".
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     status: DocumentStatus
     total_pages: int | None = None
     pages_processed: int = 0
+    chunks_total: int = 0
+    chunks_mapped: int = 0
+    modules_ready: list[AnalysisModule] = Field(default_factory=list)
     updated_at: datetime
-
-
-AnalysisModule = Literal["go_no_go", "synopsis", "risk_finder"]
 
 
 class DocumentAnalysisResponse(BaseModel):
