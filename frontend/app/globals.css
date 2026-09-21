@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8fa;
+  --foreground: #111827;
+
+  /* Blueprint precision — see DESIGN.md's Direction contract */
+  --ink-950: #0b1220;
+  --ink-900: #111827;
+  --paper: #f7f8fa;
+
+  --accent: #0891b2; /* cyan-700 — light-ground contexts (the app itself) */
+  --accent-bright: #2dd4e8; /* dark-ground contexts (the landing hero) */
+
+  --severity-high: #dc2626;
+  --severity-medium: #d97706;
+  --severity-low: #64748b;
+
+  --status-go: #16a34a;
+  --status-conditional: #d97706;
+  --status-no-go: #dc2626;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-paper: var(--paper);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-severity-high: var(--severity-high);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-low: var(--severity-low);
+  --color-status-go: var(--status-go);
+  --color-status-conditional: var(--status-conditional);
+  --color-status-no-go: var(--status-no-go);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Verifiable data points — scores, amounts, dates, page citations, IDs (DESIGN.md) */
+.data-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Headline tracking — large-and-medium-weight reads as more confident/precise than
+   large-and-bold; tightened letterforms at heading sizes (DESIGN.md's ContraVault
+   revision note). Applied selectively, not globally, since body text at -0.02em would
+   hurt readability. */
+.heading-tight {
+  letter-spacing: -0.02em;
 }

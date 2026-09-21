@@ -26,11 +26,13 @@ export default function CitationLink({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="cursor-pointer rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 underline decoration-dotted underline-offset-2 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
+        className="group inline-flex cursor-pointer items-center gap-1.5 rounded text-left text-accent decoration-accent/40 decoration-dotted underline-offset-2 hover:underline"
         title={`View source — page ${pageRef}`}
       >
         {children}
-        <sup className="ml-0.5 font-semibold">p.{pageRef}</sup>
+        <span className="data-mono inline-flex items-center rounded border border-accent/30 bg-accent/5 px-1.5 py-0.5 text-[11px] font-semibold text-accent group-hover:bg-accent/10">
+          p.{pageRef}
+        </span>
       </button>
       {open && (
         <PageViewerModal documentId={documentId} pageRef={pageRef} onClose={() => setOpen(false)} />
@@ -91,28 +93,30 @@ function PageViewerModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-md border border-slate-200 bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Source — page {pageRef}</h2>
+          <h2 className="text-lg font-semibold text-ink-900">
+            Source — <span className="data-mono">page {pageRef}</span>
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="rounded px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
 
-        {error && <p className="text-red-600">{error}</p>}
+        {error && <p className="text-sm text-severity-high">{error}</p>}
 
-        {!error && !page && <p className="text-neutral-500">Loading…</p>}
+        {!error && !page && <p className="text-sm text-slate-500">Loading…</p>}
 
         {page && (
           <div className="space-y-4">
-            <div className="flex gap-3 text-xs text-neutral-500">
+            <div className="data-mono flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
               <span>Classification: {page.classification}</span>
               {page.extraction_method && <span>Extracted via: {page.extraction_method}</span>}
               {page.confidence_score !== null && (
@@ -127,16 +131,16 @@ function PageViewerModal({
               <img
                 src={imageUrl}
                 alt={`Scanned page ${pageRef}`}
-                className="w-full rounded border border-neutral-200 dark:border-neutral-700"
+                className="w-full rounded border border-slate-200"
               />
             )}
 
             {page.raw_text ? (
-              <pre className="whitespace-pre-wrap rounded bg-neutral-50 p-3 font-mono text-sm text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+              <pre className="whitespace-pre-wrap rounded bg-slate-50 p-3 font-mono text-sm text-slate-800">
                 {page.raw_text}
               </pre>
             ) : (
-              !imageUrl && <p className="text-neutral-500">No extracted text for this page.</p>
+              !imageUrl && <p className="text-sm text-slate-500">No extracted text for this page.</p>
             )}
           </div>
         )}

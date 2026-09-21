@@ -14,6 +14,7 @@ export type DocumentStatus =
 export interface DocumentUploadResponse {
   id: string;
   filename: string;
+  issuing_authority: string | null;
   status: DocumentStatus;
   total_pages: number | null;
   uploaded_at: string;
@@ -24,6 +25,9 @@ export interface DocumentStatusResponse {
   status: DocumentStatus;
   total_pages: number | null;
   pages_processed: number;
+  chunks_total: number;
+  chunks_mapped: number;
+  modules_ready: AnalysisModule[];
   updated_at: string;
 }
 
