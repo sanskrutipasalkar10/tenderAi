@@ -5,11 +5,11 @@ directly from routes — FastAPI playbook Phase 3) and from the LLM-facing schem
 app/prompts (which validate model output, not internal pipeline handoffs).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PageClassification = Literal["native_text", "scanned_image", "table", "mixed"]
 ExtractionMethod = Literal["native", "vision_cloud", "vision_local"]
@@ -87,10 +87,37 @@ class MapPassResult(BaseModel):
 # interpretive output (which criteria pass/fail, which clause is which risk category). --
 
 
-GoNoGoStatus = Literal["pass", "fail"]
-GoNoGoDecision = Literal["Go", "Conditional-Go", "No-Go"]
+# "insufficient_data" (added following up on docs/DECISIONS.md #64): distinguishes a
+# criterion with no relevant company_value at all from a criterion with a clear,
+# evidenced mismatch. Both behave like a fail for gate-triggering purposes until a
+# human resolves it (see GoNoGoHumanOverride) — never a free pass by default — but are
+# never visually indistinguishable, unlike before.
+GoNoGoStatus = Literal["pass", "fail", "insufficient_data"]
+GoNoGoCriterionType = Literal["eligibility", "procedural"]
+# Score bands per docs/pq-tq-framework-implementation-plan.md §4 / the SUTF docx's
+# Table 26 (Phase 1 — see docs/DECISIONS.md): replaces the old 3-value
+# freeform decision with the framework's own graded bands. "Go"/"No-Go" are
+# unchanged strings, so existing evals/datasets/golden_go_no_go.jsonl fixtures
+# (which only ever expect "Go" or "No-Go") stay valid.
+GoNoGoDecision = Literal[
+    "Go", "Go (Management Review)", "Conditional-Go (Partner Required)", "No-Go"
+]
 RiskSeverity = Literal["HIGH", "MEDIUM", "LOW"]
 SynopsisConfidence = Literal["high", "medium", "low"]
+
+
+class GoNoGoHumanOverride(BaseModel):
+    """A bid-team member's resolution of a criterion the model couldn't confidently
+    score — set via PATCH .../analysis/go_no_go/review, never by the model itself.
+    No per-reviewer identity: this system has a single shared credential, not a
+    per-user table (docs/DECISIONS.md #44) — `note` + `reviewed_at` is the full audit
+    surface by design, not an oversight.
+    """
+
+    status: Literal["pass", "fail"]
+    note: str | None = None
+    original_status: GoNoGoStatus
+    reviewed_at: datetime
 
 
 class GoNoGoCriterionMatch(BaseModel):
@@ -99,16 +126,29 @@ class GoNoGoCriterionMatch(BaseModel):
     company_value: str
     status: GoNoGoStatus
     page_ref: int = Field(ge=0)
+    # One of app.pipeline.reduce_pass.HARD_FAIL_GATES if this criterion's failure
+    # triggers a hard gate, else None. Only ever meaningful when status == "fail".
+    # Never set on a "procedural" criterion — enforced in code (check_hard_gates), not
+    # only by prompt instruction, per CLAUDE.md hard rule 3.
+    gate: str | None = None
+    # "eligibility" (a real company-capability fact — turnover, certifications,
+    # experience) vs. "procedural" (a bid-package mechanic — signatures, translations,
+    # formats — satisfiable by any competent bidder, not a company attribute). Only
+    # eligibility criteria feed check_hard_gates / are reviewable via human override.
+    criterion_type: GoNoGoCriterionType = "eligibility"
+    human_override: GoNoGoHumanOverride | None = None
 
 
 class GoNoGoLLMResult(BaseModel):
-    """What the model returns for go_no_go — criteria comparison only. `decision`,
-    `score`, and `gaps` are computed by reduce_pass.py from this, never asked of the
-    model directly.
+    """What the model returns for go_no_go — criteria comparison plus the 8 named
+    factor sub-scores (app.pipeline.reduce_pass.BID_DECISION_FACTOR_WEIGHTS).
+    `decision`, `score`, and `gaps` are computed by reduce_pass.py from this, never
+    asked of the model directly (CLAUDE.md hard rule 3).
     """
 
     criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
+    factor_scores: dict[str, int] = Field(default_factory=dict)
 
 
 class GoNoGoResult(BaseModel):
@@ -119,6 +159,22 @@ class GoNoGoResult(BaseModel):
     criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
+    # The 8 weighted factor sub-scores behind `score` (additive field — Phase 1,
+    # docs/DECISIONS.md). None only for the pre-LLM short-circuit paths (missing
+    # profile fields / no criteria found).
+    factor_scores: dict[str, int] | None = None
+
+
+class GoNoGoCriterionOverride(BaseModel):
+    """One human review decision, submitted via PATCH .../analysis/go_no_go/review."""
+
+    criterion_index: int = Field(ge=0)
+    status: Literal["pass", "fail"]
+    note: str | None = None
+
+
+class GoNoGoReviewRequest(BaseModel):
+    overrides: list[GoNoGoCriterionOverride] = Field(min_length=1)
 
 
 class RiskFinderLLMRisk(BaseModel):
@@ -259,6 +315,36 @@ class CompanyProfileWrite(BaseModel):
     geographic_presence: list | None = None
     sectors: list | None = None
     max_capacity_pct: float | None = None
+    cin: str | None = None
+    roc_number: str | None = None
+    section8_licence_number: str | None = None
+    date_of_incorporation: date | None = None
+    pan: str | None = None
+    gstin: str | None = None
+    udyam_registration_number: str | None = None
+    msme_classification: list | None = None
+    ngo_darpan_id: str | None = None
+    authorised_capital_inr: float | None = None
+    paid_up_capital_inr: float | None = None
+    net_worth_inr: float | None = None
+    turnover_source: str | None = None
+    unconfirmed_org_turnover_inr: dict | None = None
+    directors: list | None = None
+    bank_details: dict | None = None
+    employment_count: dict | None = None
+    government_grants: list | None = None
+
+    @model_validator(mode="after")
+    def _turnover_source_required_with_turnover(self) -> "CompanyProfileWrite":
+        # The direct fix for the real problem docs/sutf-company-profile-decision-grade
+        # .docx found: two turnover figures on file, no record of which was actually
+        # confirmed against this entity. See migration 0003's docstring.
+        if self.annual_turnover is not None and self.turnover_source is None:
+            raise ValueError(
+                "annual_turnover cannot be set without also setting turnover_source "
+                "(which document/filing the figures came from)"
+            )
+        return self
 
 
 class CompanyProfileResponse(BaseModel):
@@ -272,5 +358,23 @@ class CompanyProfileResponse(BaseModel):
     geographic_presence: list | None = None
     sectors: list | None = None
     max_capacity_pct: float | None = None
+    cin: str | None = None
+    roc_number: str | None = None
+    section8_licence_number: str | None = None
+    date_of_incorporation: date | None = None
+    pan: str | None = None
+    gstin: str | None = None
+    udyam_registration_number: str | None = None
+    msme_classification: list | None = None
+    ngo_darpan_id: str | None = None
+    authorised_capital_inr: float | None = None
+    paid_up_capital_inr: float | None = None
+    net_worth_inr: float | None = None
+    turnover_source: str | None = None
+    unconfirmed_org_turnover_inr: dict | None = None
+    directors: list | None = None
+    bank_details: dict | None = None
+    employment_count: dict | None = None
+    government_grants: list | None = None
     created_at: datetime
     updated_at: datetime

@@ -36,4 +36,11 @@ def validate_analysis_result(module: str, result: dict[str, Any]) -> dict[str, A
         raise DataQualityError(
             f"{module} result does not match the expected schema: {exc}"
         ) from exc
-    return validated.model_dump()
+    # mode="json", not the default "python": this dict is persisted straight into a
+    # JSONB column. GoNoGoHumanOverride.reviewed_at (docs/DECISIONS.md #69) is a real
+    # datetime field — the default model_dump() leaves it as a Python datetime object,
+    # which psycopg2's JSON adapter can't serialize (a real bug, found live: every
+    # go_no_go review submission failed with "Object of type datetime is not JSON
+    # serializable"). mode="json" converts it (and any future non-JSON-native field)
+    # to a plain JSON-safe value up front, matching what's about to be stored.
+    return validated.model_dump(mode="json")

@@ -118,6 +118,68 @@ def test_successful_map_pass_persists_structured_facts(monkeypatch) -> None:
     assert extraction in db.added
 
 
+def test_suspiciously_empty_result_on_substantial_content_gets_one_retry(monkeypatch) -> None:
+    """Real bug found via scripts/local_pipeline_test.py: a cloud timeout fell back to
+    the local model, which silently returned a totally empty MapPassResult for a
+    285-line chunk of real tender clauses. A chunk with substantial text that comes
+    back empty must be retried once, not accepted at face value.
+    """
+    document_id = uuid.uuid4()
+    long_text = "Clause text. " * 100  # well over _MIN_CONTENT_LENGTH_FOR_NONEMPTY_RESULT
+    pages = [_make_page(document_id, 0, long_text)]
+    db = FakeMapPassSession(pages)
+    chunk = Chunk(
+        id=uuid.uuid4(), document_id=document_id, start_page=0, end_page=0, token_count=50
+    )
+
+    call_count = 0
+
+    def _fake_complete(task, prompt, schema):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return MapPassResult(), "ollama_chat/qwen2.5-coder:7b"  # the empty fallback result
+        return (
+            MapPassResult(
+                dates=[MapPassDateFact(label="Deadline", value="1 Jan 2027", page_ref=0)]
+            ),
+            "ollama_chat/gpt-oss:20b-cloud",
+        )
+
+    monkeypatch.setattr(map_pass, "complete_structured", _fake_complete)
+
+    extraction = map_pass.run_map_pass(db, chunk)
+
+    assert call_count == 2
+    assert extraction.structured_json["dates"][0]["label"] == "Deadline"
+    assert extraction.model_used == "ollama_chat/gpt-oss:20b-cloud"
+
+
+def test_empty_result_on_short_content_is_not_retried(monkeypatch) -> None:
+    """A short chunk legitimately having nothing extractable must NOT trigger the
+    suspicious-empty-result retry — only substantial content earns that suspicion.
+    """
+    document_id = uuid.uuid4()
+    pages = [_make_page(document_id, 0, "short text")]
+    db = FakeMapPassSession(pages)
+    chunk = Chunk(
+        id=uuid.uuid4(), document_id=document_id, start_page=0, end_page=0, token_count=5
+    )
+
+    call_count = 0
+
+    def _fake_complete(task, prompt, schema):
+        nonlocal call_count
+        call_count += 1
+        return MapPassResult(), "ollama_chat/gpt-oss:20b-cloud"
+
+    monkeypatch.setattr(map_pass, "complete_structured", _fake_complete)
+
+    map_pass.run_map_pass(db, chunk)
+
+    assert call_count == 1
+
+
 def test_run_map_pass_for_document_processes_every_chunk_independently(monkeypatch) -> None:
     document_id = uuid.uuid4()
     pages = [_make_page(document_id, i, f"text {i}") for i in range(3)]

@@ -2,7 +2,9 @@ import type { DocumentStatus, GoNoGoCriterionMatch, GoNoGoResult, RiskFinderRisk
 
 const DECISION_STYLES: Record<GoNoGoResult["decision"], string> = {
   Go: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
-  "Conditional-Go": "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
+  "Go (Management Review)": "bg-status-go/10 text-status-go ring-1 ring-status-go/20",
+  "Conditional-Go (Partner Required)":
+    "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
   "No-Go": "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",
 };
 
@@ -35,6 +37,14 @@ export function SeverityBadge({ severity }: { severity: RiskFinderRisk["severity
 const CRITERION_STYLES: Record<GoNoGoCriterionMatch["status"], string> = {
   pass: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
   fail: "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",
+  insufficient_data:
+    "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
+};
+
+const CRITERION_LABEL: Record<GoNoGoCriterionMatch["status"], string> = {
+  pass: "pass",
+  fail: "fail",
+  insufficient_data: "needs review",
 };
 
 export function CriterionStatusBadge({ status }: { status: GoNoGoCriterionMatch["status"] }) {
@@ -42,7 +52,7 @@ export function CriterionStatusBadge({ status }: { status: GoNoGoCriterionMatch[
     <span
       className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${CRITERION_STYLES[status]}`}
     >
-      {status}
+      {CRITERION_LABEL[status]}
     </span>
   );
 }

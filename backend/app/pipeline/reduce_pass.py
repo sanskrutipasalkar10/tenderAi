@@ -11,11 +11,13 @@ see docs/DECISIONS.md #38-40 for why each of these specific splits was chosen.
 """
 
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import DataQualityError
 from app.core.logging import get_logger
 from app.guardrails.output_checks import validate_analysis_result
 from app.llm.structured import complete_structured
@@ -24,8 +26,12 @@ from app.models.chunk_extraction import ChunkExtraction
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.models.schemas import (
+    GoNoGoCriterionMatch,
+    GoNoGoDecision,
+    GoNoGoHumanOverride,
     GoNoGoLLMResult,
     GoNoGoResult,
+    GoNoGoStatus,
     MapPassAmountFact,
     MapPassCriterionFact,
     MapPassDateFact,
@@ -77,6 +83,155 @@ DEFAULT_SEVERITY = "MEDIUM"
 
 # risk_score formula (docs/DECISIONS.md #39): a simple weighted count, capped at 100.
 _SEVERITY_WEIGHT = {"HIGH": 30, "MEDIUM": 15, "LOW": 5}
+
+# --- go_no_go: hard-fail gates + weighted score (Phase 1 of
+# docs/pq-tq-framework-implementation-plan.md — see docs/DECISIONS.md for the full
+# row, including why these are Python constants rather than DB reference tables in
+# this phase). Verbatim gate names from that plan's Section 3. ------------------------
+HARD_FAIL_GATES = (
+    "Mandatory PQ experience unavailable",
+    "Turnover not met and no valid exemption",
+    "Mandatory certification unavailable",
+    "Mandatory OEM authorization unavailable",
+    "Mandatory manpower unavailable",
+    "Required consortium/partner route unavailable",
+    "Unacceptable legal/commercial terms",
+)
+
+# The 8-factor Bid/No-Bid weighted score (docs/pq-tq-framework-implementation-plan.md
+# §4, matching Table 26 of docs/sutf-company-profile-decision-grade.docx exactly —
+# sums to 100).
+BID_DECISION_FACTOR_WEIGHTS: dict[str, int] = {
+    "PQ Eligibility": 30,
+    "Similar Experience": 20,
+    "Technical Capability": 15,
+    "Government/PSU Experience": 10,
+    "Key Manpower": 10,
+    "Financial Capability": 5,
+    "Strategic Relevance": 5,
+    "Partner/OEM Availability": 5,
+}
+
+
+def _effective_status(match: GoNoGoCriterionMatch) -> GoNoGoStatus:
+    """A human override (app.api.routes_analysis's review endpoint) always wins over
+    the model's original status — that's the entire point of reviewing a criterion.
+    """
+    return match.human_override.status if match.human_override else match.status
+
+
+def check_hard_gates(criteria_matches: list[GoNoGoCriterionMatch]) -> list[str]:
+    """Deterministic pre-check (CLAUDE.md hard rule 3 / docs/SPEC.md §10 — this is a
+    pipeline, not an agent, so control-flow decisions are code, not prompt
+    instructions). A criterion match only triggers a gate if the model itself tagged
+    it (`gate` field, set only on a non-"pass" status) — the model does the
+    interpretive work of connecting a specific failed criterion to a named gate; this
+    function just enforces the resulting control flow.
+
+    Only "eligibility"-type criteria are ever considered — enforced here, not only by
+    the prompt's instruction that a "procedural" criterion should never carry a gate
+    (defense in depth, hard rule 3). "insufficient_data" triggers exactly like "fail"
+    (no evidence is never treated as a free pass by default, per the source
+    framework's own "do not mark qualified without documentary evidence" stance) —
+    until a human_override resolves it, which _effective_status applies first.
+
+    Returns the triggered gate names in HARD_FAIL_GATES' own order (empty = no hard
+    fail).
+    """
+    triggered = {
+        m.gate
+        for m in criteria_matches
+        if m.criterion_type == "eligibility"
+        and _effective_status(m) != "pass"
+        and m.gate is not None
+    }
+    return [gate for gate in HARD_FAIL_GATES if gate in triggered]
+
+
+def compute_weighted_score(factor_scores: dict[str, int]) -> float:
+    """Weighted sum over BID_DECISION_FACTOR_WEIGHTS. Raises if the model omitted a
+    factor — a real validation failure that should surface loudly (as a ProviderError
+    the caller's normal retry/fallback handles), not silently default to 0 and mask a
+    prompt-compliance problem.
+    """
+    missing = set(BID_DECISION_FACTOR_WEIGHTS) - set(factor_scores)
+    if missing:
+        raise ValueError(f"factor_scores is missing required factors: {sorted(missing)}")
+    return sum(
+        factor_scores[factor] * weight / 100
+        for factor, weight in BID_DECISION_FACTOR_WEIGHTS.items()
+    )
+
+
+def decide(score: float) -> GoNoGoDecision:
+    """Score bands, verbatim from docs/pq-tq-framework-implementation-plan.md §4."""
+    if score >= 80:
+        return "Go"
+    if score >= 65:
+        return "Go (Management Review)"
+    if score >= 50:
+        return "Conditional-Go (Partner Required)"
+    return "No-Go"
+
+
+def apply_human_overrides(
+    result: dict[str, Any],
+    overrides: list[tuple[int, Literal["pass", "fail"], str | None]],
+) -> dict[str, Any]:
+    """Applies a bid-team member's review of specific eligibility criteria to an
+    already-computed go_no_go `result` dict, then recomputes `decision`/`gaps`/`score`
+    from the effective (overridden) statuses via the same check_hard_gates/decide this
+    module always uses — never a second LLM call, never re-asking the model for a
+    decision (hard rule 3 still applies to human-reviewed results, not just model ones).
+
+    Deliberate scope boundary: this changes gate-triggering and therefore `decision`,
+    but never touches `factor_scores` — those stay the model's original holistic
+    judgment. Reviewing one criterion doesn't retroactively re-score the other 7
+    factors; that would need a second LLM call this function is designed to avoid.
+
+    Raises DataQualityError for an out-of-range `criterion_index` or an attempt to
+    review a "procedural" criterion (procedural criteria never feed check_hard_gates,
+    so there's nothing for a human override to change — see docs/DECISIONS.md).
+    """
+    criteria_matches = list(result.get("criteria_matches", []))
+    now = datetime.now(timezone.utc)
+
+    for criterion_index, status, note in overrides:
+        if not 0 <= criterion_index < len(criteria_matches):
+            raise DataQualityError(
+                f"criterion_index {criterion_index} is out of range "
+                f"(this analysis has {len(criteria_matches)} criteria_matches)"
+            )
+        match = GoNoGoCriterionMatch.model_validate(criteria_matches[criterion_index])
+        if match.criterion_type != "eligibility":
+            raise DataQualityError(
+                f"criterion_index {criterion_index} ('{match.criterion}') is "
+                "'procedural', not 'eligibility' — procedural criteria don't feed "
+                "scoring, so there's nothing to review"
+            )
+        match.human_override = GoNoGoHumanOverride(
+            status=status, note=note, original_status=match.status, reviewed_at=now
+        )
+        criteria_matches[criterion_index] = match.model_dump(mode="json")
+
+    matches_models = [GoNoGoCriterionMatch.model_validate(m) for m in criteria_matches]
+    triggered_gates = check_hard_gates(matches_models)
+
+    factor_scores = result.get("factor_scores")
+    if factor_scores is not None:
+        weighted_score = compute_weighted_score(factor_scores)
+        decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+        score = round(weighted_score)
+    else:
+        # The pre-LLM short-circuit paths (missing profile fields / no criteria found)
+        # never computed a weighted score to begin with — an override here can only
+        # ever confirm the existing decision, never manufacture a score that was never
+        # computed.
+        decision = result["decision"]
+        score = result["score"]
+
+    return {**result, "criteria_matches": criteria_matches, "gaps": triggered_gates,
+            "decision": decision, "score": score}
 
 
 def _aggregate_chunk_facts(db: Session, document: Document) -> MapPassResult:
@@ -156,11 +311,24 @@ def _missing_profile_fields(company_profile: dict) -> list[str]:
     return [f for f in REQUIRED_PROFILE_FIELDS if company_profile.get(f) is None]
 
 
+# Short-circuit paths (missing profile data / no criteria to check) don't have a
+# weighted score to band, so they reuse the closest of the 4 real decision values —
+# "Conditional-Go (Partner Required)" is the nearest match to the old plain
+# "Conditional-Go" in spirit ("not a clean yes/no, something needed before
+# proceeding"), even though the parenthetical is about a partner/OEM gap specifically
+# in the framework's own usage. Not a new 5th value — the schema only allows the 4.
+_INSUFFICIENT_DATA_DECISION: GoNoGoDecision = "Conditional-Go (Partner Required)"
+
+
 def run_go_no_go(db: Session, document: Document, company_profile: dict) -> DocumentAnalysis:
     """Compares `company_profile` against every eligibility criterion found in the
     document. Never guesses a Go/No-Go: an incomplete profile or a document with no
-    extracted criteria both short-circuit to Conditional-Go with gaps[] populated,
-    without an LLM call (docs/SPEC.md §7's "I don't know" path).
+    extracted criteria both short-circuit without an LLM call (docs/SPEC.md §7's "I
+    don't know" path). Otherwise runs the Phase 1 hard-gate + weighted-score formula
+    (docs/pq-tq-framework-implementation-plan.md §3-4, docs/DECISIONS.md) — a real
+    behavior change from the old "any criterion fails -> No-Go" rule: a failing
+    criterion only forces No-Go if the model tagged it as one of the 7 named hard
+    gates; otherwise it just pulls down the relevant factor score.
     """
     missing_fields = _missing_profile_fields(company_profile)
     facts = _aggregate_chunk_facts(db, document)
@@ -171,13 +339,15 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
             document_id=str(document.id),
             missing_fields=missing_fields,
         )
-        result = GoNoGoResult(score=0, decision="Conditional-Go", gaps=missing_fields)
+        result = GoNoGoResult(
+            score=0, decision=_INSUFFICIENT_DATA_DECISION, gaps=missing_fields
+        )
         model_used = None
     elif not facts.criteria:
         logger.warning("reduce_pass.go_no_go_no_criteria_found", document_id=str(document.id))
         result = GoNoGoResult(
             score=0,
-            decision="Conditional-Go",
+            decision=_INSUFFICIENT_DATA_DECISION,
             gaps=["No eligibility criteria found in document"],
         )
         model_used = None
@@ -190,17 +360,16 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
         )
         llm_result, model_used = complete_structured("reduce", prompt, GoNoGoLLMResult)
 
-        total = len(llm_result.criteria_matches)
-        passed = sum(1 for m in llm_result.criteria_matches if m.status == "pass")
-        decision: Literal["Go", "No-Go"] = (
-            "No-Go" if any(m.status == "fail" for m in llm_result.criteria_matches) else "Go"
-        )
+        triggered_gates = check_hard_gates(llm_result.criteria_matches)
+        weighted_score = compute_weighted_score(llm_result.factor_scores)
+        decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
         result = GoNoGoResult(
-            score=round(100 * passed / total) if total else 0,
+            score=round(weighted_score),
             decision=decision,
             criteria_matches=llm_result.criteria_matches,
-            gaps=[],
+            gaps=triggered_gates,
             next_steps=llm_result.next_steps,
+            factor_scores=llm_result.factor_scores,
         )
 
     validated = validate_analysis_result("go_no_go", result.model_dump())

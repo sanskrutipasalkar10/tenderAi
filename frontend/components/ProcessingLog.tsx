@@ -61,9 +61,9 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
       if (status.chunks_mapped > prev.chunks_mapped) {
         push(`Mapped chunk ${status.chunks_mapped} of ${status.chunks_total}`);
       }
-      for (const module of status.modules_ready) {
-        if (!prev.modules_ready.includes(module)) {
-          push(`${MODULE_LABEL[module]} ready`);
+      for (const analysisModule of status.modules_ready) {
+        if (!prev.modules_ready.includes(analysisModule)) {
+          push(`${MODULE_LABEL[analysisModule]} ready`);
         }
       }
     }

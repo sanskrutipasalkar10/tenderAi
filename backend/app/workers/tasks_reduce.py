@@ -110,14 +110,50 @@ def risk_finder_task(self, document_id: str) -> str | None:
 
 
 def _profile_to_dict(profile) -> dict:
+    """Every company_profile field the tender might ask about — docs/DECISIONS.md
+    (#65 follow-up): the real PQ checklist (docs/C4i4_Tender_PQ_TQ_BID_NO_BID_
+    Framework.xlsx, Section A rows 3-4) lists PAN and GST registration as real PQ
+    criteria, so a tender criterion asking for either was being marked "no
+    information provided" -> FAIL purely because the field was withheld from the
+    model, not because the company actually lacks it. Widening this was a deliberate
+    user request, not a default worth reverting to without asking.
+
+    The one deliberate exception: `unconfirmed_org_turnover_inr` is NEVER sent. That
+    field isn't merely out-of-scope like the others were — the source docx (see
+    migration 0003) explicitly flags those figures as unconfirmed against this legal
+    entity's PAN/CIN. Sending it risks the model scoring Financial Capability off
+    numbers we already know might be wrong. Excluding it here (never exposing it) is
+    still the only way to guarantee it can't be used, per the same reasoning as
+    before.
+    """
     if profile is None:
         return {}
     return {
         "company_name": profile.company_name,
         "annual_turnover": profile.annual_turnover,
+        "turnover_source": profile.turnover_source,
         "certifications": profile.certifications,
         "past_projects": profile.past_projects,
         "geographic_presence": profile.geographic_presence,
         "sectors": profile.sectors,
         "max_capacity_pct": profile.max_capacity_pct,
+        "cin": profile.cin,
+        "roc_number": profile.roc_number,
+        "section8_licence_number": profile.section8_licence_number,
+        "date_of_incorporation": (
+            profile.date_of_incorporation.isoformat() if profile.date_of_incorporation else None
+        ),
+        "pan": profile.pan,
+        "gstin": profile.gstin,
+        "udyam_registration_number": profile.udyam_registration_number,
+        "msme_classification": profile.msme_classification,
+        "ngo_darpan_id": profile.ngo_darpan_id,
+        "authorised_capital_inr": profile.authorised_capital_inr,
+        "paid_up_capital_inr": profile.paid_up_capital_inr,
+        "net_worth_inr": profile.net_worth_inr,
+        "directors": profile.directors,
+        "bank_details": profile.bank_details,
+        "employment_count": profile.employment_count,
+        "government_grants": profile.government_grants,
+        # unconfirmed_org_turnover_inr: deliberately excluded, see docstring above.
     }

@@ -6,6 +6,7 @@ import type {
   DocumentAnalysisResponse,
   DocumentStatusResponse,
   DocumentUploadResponse,
+  GoNoGoResult,
   PageContentResponse,
 } from "./types";
 
@@ -97,6 +98,23 @@ export function getAnalysis<T = unknown>(
 
 export function getAllAnalysis(documentId: string): Promise<DocumentAnalysisResponse[]> {
   return apiFetch(`/documents/${documentId}/analysis`);
+}
+
+export interface GoNoGoCriterionOverride {
+  criterion_index: number;
+  status: "pass" | "fail";
+  note: string | null;
+}
+
+export function reviewGoNoGo(
+  documentId: string,
+  overrides: GoNoGoCriterionOverride[],
+): Promise<DocumentAnalysisResponse<GoNoGoResult>> {
+  return apiFetch(`/documents/${documentId}/analysis/go_no_go/review`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ overrides }),
+  });
 }
 
 export function getPageContent(

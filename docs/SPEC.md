@@ -54,18 +54,39 @@ Out-of-domain behavior: refuse/flag with a visible reason, never silently procee
 ## 6. Outputs
 Format: JSON (three `document_analysis.result` shapes, one row per `(document_id, module)`)
 
-Schema (`go_no_go`):
+Schema (`go_no_go`) — as of docs/DECISIONS.md #64/#68/#69 (hard-gate pre-check +
+weighted 8-factor score, criterion-type tagging, and targeted human review):
 ```jsonc
 {
   "score": 78,
-  "decision": "Go",
+  "decision": "Go",  // one of: "Go", "Go (Management Review)", "Conditional-Go (Partner Required)", "No-Go"
   "criteria_matches": [
-    { "criterion": "Minimum turnover", "required": "50 Cr", "company_value": "72 Cr", "status": "pass" }
+    {
+      "criterion": "Minimum turnover", "required": "50 Cr", "company_value": "72 Cr",
+      "status": "pass",  // "pass" | "fail" | "insufficient_data"
+      "gate": null,
+      "criterion_type": "eligibility",  // "eligibility" (a company-capability fact) | "procedural" (a bid-package mechanic — never scored/gated)
+      "human_override": null  // set via PATCH .../analysis/go_no_go/review — {status, note, original_status, reviewed_at}
+    }
   ],
-  "gaps": [],
-  "next_steps": ["Prepare EMD of INR 91.2 lakh", "Submit ISO 9001 certificate"]
+  "gaps": [],  // triggered hard-gate names (if any) + any LLM-reported gaps
+  "next_steps": ["Prepare EMD of INR 91.2 lakh", "Submit ISO 9001 certificate"],
+  "factor_scores": {
+    "PQ Eligibility": 90, "Similar Experience": 70, "Technical Capability": 80,
+    "Government/PSU Experience": 100, "Key Manpower": 60, "Financial Capability": 40,
+    "Strategic Relevance": 50, "Partner/OEM Availability": 20
+  }
 }
 ```
+`score` is `compute_weighted_score(factor_scores)` against the fixed weights in
+`app/pipeline/reduce_pass.py`'s `BID_DECISION_FACTOR_WEIGHTS` (sums to 100); `decision`
+is `decide(score)` unless a `criteria_matches[].gate` (only ever set on an
+`"eligibility"`-type criterion) names one of the 7 `HARD_FAIL_GATES`, which forces
+`"No-Go"` regardless of score. Both are always computed by code, never read from LLM
+free text. `"insufficient_data"` (no relevant `company_value` found) behaves like
+`"fail"` for gate-triggering until a `human_override` resolves it via the review
+endpoint — reviewing changes `decision`/`gaps`, but never retroactively adjusts
+`factor_scores` (a stated scope boundary, docs/DECISIONS.md #69).
 
 Schema (`risk_finder`):
 ```jsonc

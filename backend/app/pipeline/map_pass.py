@@ -16,9 +16,21 @@ from app.prompts.registry import load_prompt
 
 logger = get_logger(__name__)
 
+# A chunk with this much real text returning a totally empty MapPassResult is
+# suspicious, not a legitimate "this chunk has nothing extractable" outcome — found
+# for real (docs/DECISIONS.md): a cloud timeout fell back to the local model
+# (qwen2.5-coder:7b, docs/DECISIONS.md #32), which silently returned nothing for a
+# 285-line chunk of real catering-tender clauses instead of erroring, so nothing
+# downstream had reason to distrust it.
+_MIN_CONTENT_LENGTH_FOR_NONEMPTY_RESULT = 500
+
 
 def _format_chunk_content(pages: list[tuple[int, str]]) -> str:
     return "\n\n".join(f"[PAGE {page_number}]\n{text}" for page_number, text in pages)
+
+
+def _is_empty(result: MapPassResult) -> bool:
+    return not (result.dates or result.amounts or result.criteria or result.risk_candidates)
 
 
 def run_map_pass(db: Session, chunk: Chunk) -> ChunkExtraction:
@@ -27,6 +39,14 @@ def run_map_pass(db: Session, chunk: Chunk) -> ChunkExtraction:
     (every page in its range failed extraction) gets an empty MapPassResult without an
     LLM call, rather than being silently skipped or wastefully calling the model on
     nothing.
+
+    A chunk WITH substantial real text that still comes back with a totally empty
+    result gets one retry (fresh call, same content — gives the cloud model, which
+    complete_for_task always tries first, another chance rather than assuming the
+    prior fallback-to-local result was representative). If the retry is also empty,
+    that's persisted as-is (still never silently dropped), but both attempts are
+    logged so the gap is visible rather than indistinguishable from "this chunk
+    genuinely has nothing extractable."
     """
     pages = chunk_page_text(db, chunk)
 
@@ -45,6 +65,22 @@ def run_map_pass(db: Session, chunk: Chunk) -> ChunkExtraction:
         # literal {braces} that .format() would misinterpret as placeholders.
         prompt = load_prompt("map_pass", "v1_map_pass").replace("{content}", content)
         result, model_used = complete_structured("map", prompt, MapPassResult)
+
+        if len(content) > _MIN_CONTENT_LENGTH_FOR_NONEMPTY_RESULT and _is_empty(result):
+            logger.warning(
+                "map_pass.suspiciously_empty_result",
+                chunk_id=str(chunk.id),
+                content_length=len(content),
+                model_used=model_used,
+            )
+            result, model_used = complete_structured("map", prompt, MapPassResult)
+            if _is_empty(result):
+                logger.warning(
+                    "map_pass.empty_after_retry",
+                    chunk_id=str(chunk.id),
+                    content_length=len(content),
+                    model_used=model_used,
+                )
 
     extraction = ChunkExtraction(
         chunk_id=chunk.id,

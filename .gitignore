@@ -24,6 +24,20 @@ documents/*.pdf
 # sensitive, kept local + in the real (non-public) Postgres only, repo is public.
 backend/scripts/seed_data/
 
+# Real C4i4 statutory documents (PAN/GST/MOA/AOA/Udyam scans) and the company's
+# corrected statutory profile writeup — same reasoning as the seed data above: real,
+# sensitive documents for a real company, repo is public. The PQ/TQ framework
+# spreadsheet is excluded too (treated as sensitive by explicit choice, even though it
+# appeared to be a blank template — safer default for a public repo).
+docs/C4i4_company_docs/
+docs/sutf-company-profile-decision-grade.docx
+docs/C4i4_Tender_PQ_TQ_BID_NO_BID_Framework*.xlsx
+
+# Local pipeline test output (scripts/local_pipeline_test.py) — real extracted tender
+# text and real go_no_go analysis referencing the real company profile, same
+# reasoning as above.
+backend/scripts/local_pipeline_test_output/
+
 # Node / Next.js
 node_modules/
 frontend/.next/
@@ -36,6 +50,10 @@ minio_data/
 # IDE
 .vscode/
 .idea/
+
+# Playwright MCP browser-testing scratch output (console logs, snapshots) — tool
+# artifacts from live-browser verification, not project source.
+.playwright-mcp/
 
 # OS
 .DS_Store

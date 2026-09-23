@@ -43,6 +43,7 @@ def test_create_company_profile(_overrides) -> None:
         json={
             "company_name": "Acme Infra",
             "annual_turnover": {"2024": 50000000},
+            "turnover_source": "audited_financials",
             "certifications": ["ISO 9001:2015"],
             "sectors": ["roads"],
             "max_capacity_pct": 60,
@@ -54,6 +55,20 @@ def test_create_company_profile(_overrides) -> None:
     assert body["company_name"] == "Acme Infra"
     assert body["sectors"] == ["roads"]
     _overrides.add.assert_called_once()
+
+
+def test_annual_turnover_without_turnover_source_is_rejected(_overrides) -> None:
+    """migration 0003 / docs/DECISIONS.md: the direct fix for two turnover figures on
+    file with no record of which was confirmed — a write to annual_turnover must
+    always also say which document it came from.
+    """
+    response = client.post(
+        "/company-profiles",
+        json={"company_name": "Acme Infra", "annual_turnover": {"2024": 50000000}},
+    )
+
+    assert response.status_code == 422
+    _overrides.add.assert_not_called()
 
 
 def test_create_company_profile_allows_an_incomplete_profile(_overrides) -> None:

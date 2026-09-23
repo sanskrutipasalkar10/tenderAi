@@ -106,6 +106,13 @@ def test_go_no_go_decision_matches_golden(monkeypatch, golden_rows, company_prof
         db = _FakeGoldenSession(criteria)
         document = Document(id=uuid.uuid4(), filename=f"{row['fixture']}.pdf", status="analyzing")
 
+        # Phase 1 (docs/pq-tq-framework-implementation-plan.md): a fail only forces
+        # No-Go if the model tags it with a hard-fail gate, so this golden harness
+        # tags every fail with the turnover gate (both golden rows' failures are
+        # turnover-based) and scores factors low/high to match the expected band —
+        # the golden dataset itself only ever expects "Go"/"No-Go", both still valid
+        # strings under the new 4-value decision set.
+        has_fail = any(m["status"] == "fail" for m in row["expected_criteria_matches"])
         fake_llm_result = GoNoGoLLMResult(
             criteria_matches=[
                 GoNoGoCriterionMatch(
@@ -114,9 +121,17 @@ def test_go_no_go_decision_matches_golden(monkeypatch, golden_rows, company_prof
                     company_value=m["company_value"],
                     status=m["status"],
                     page_ref=row["eligibility_page"],
+                    gate=(
+                        "Turnover not met and no valid exemption"
+                        if m["status"] == "fail"
+                        else None
+                    ),
                 )
                 for m in row["expected_criteria_matches"]
-            ]
+            ],
+            factor_scores=dict.fromkeys(
+                reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 0 if has_fail else 90
+            ),
         )
         monkeypatch.setattr(
             reduce_pass,

@@ -180,7 +180,14 @@ before a reduce-pass result is persisted: it re-validates the dict against the f
 Pydantic schema for that module (`GoNoGoResult`/`SynopsisResult`/`RiskFinderResult`)
 and returns the *re-serialized validated model*, never the raw dict — so anything
 outside the fixed schema, however a malicious or malformed tender coaxed a model into
-producing it, is dropped rather than persisted (CLAUDE.md hard rule 6).
+producing it, is dropped rather than persisted (CLAUDE.md hard rule 6). Re-serializes
+via `model_dump(mode="json")`, not the bare default — found the hard way
+(`docs/DECISIONS.md #70`): a `GoNoGoHumanOverride.reviewed_at` (a real `datetime`,
+`docs/DECISIONS.md #69`) survived schema validation fine but left the *validated*
+dict holding a raw Python `datetime` under the default mode, which psycopg2's JSON
+adapter can't write into the `JSONB` column — a real `500` on every review submission,
+invisible to every mocked-DB test, caught only by actually clicking the feature in a
+real browser against the real database.
 
 ### 3.5 `app/llm/` — the only layer allowed to talk to a provider
 
@@ -367,13 +374,43 @@ correct, deterministic answer is code.
   - `run_go_no_go(db, document, company_profile)`: `_missing_profile_fields` checks
     `REQUIRED_PROFILE_FIELDS = (company_name, annual_turnover, certifications, sectors,
     max_capacity_pct)` — derived from a real golden-fixture case, not a guess
-    (`docs/DECISIONS.md #38`) — and short-circuits to `Conditional-Go` with `gaps[]`
-    populated, **without an LLM call**, if any are `None`, or if the document has no
-    extracted eligibility criteria at all. Otherwise the model returns only
-    `criteria_matches`/`next_steps` (`GoNoGoLLMResult`); `reduce_pass.py` computes
-    `decision` in code — **any** `status == "fail"` forces `"No-Go"`, never a
-    weighted-average — and `score = round(100 * passed/total)` as an informational
-    number only, never the decision driver (`docs/DECISIONS.md #40`).
+    (`docs/DECISIONS.md #38`) — and short-circuits to `"Conditional-Go (Partner
+    Required)"` with `gaps[]` populated, **without an LLM call**, if any are `None`, or
+    if the document has no extracted eligibility criteria at all.
+    Otherwise (`docs/DECISIONS.md #64` — replaces the old "any fail = No-Go" rule) the
+    model returns `criteria_matches`/`factor_scores`/`next_steps` (`GoNoGoLLMResult`);
+    `reduce_pass.py` computes `decision`/`score` entirely in code, never from LLM free
+    text:
+    - `check_hard_gates(criteria_matches)` — a criterion only forces `"No-Go"` if the
+      model tagged its `"fail"` with one of the 7 `HARD_FAIL_GATES` names (e.g.
+      "Turnover not met and no valid exemption"). An **untagged** failing criterion no
+      longer blocks the bid outright — it only pulls down whichever of the 8
+      `BID_DECISION_FACTOR_WEIGHTS` factors it belongs to.
+    - `compute_weighted_score(factor_scores)` — a fixed weighted sum (PQ
+      Eligibility=30, Similar Experience=20, Technical Capability=15, Government/PSU
+      Experience=10, Key Manpower=10, Financial Capability=5, Strategic Relevance=5,
+      Partner/OEM Availability=5, summing to 100); raises if the model omitted any
+      factor rather than silently scoring it 0.
+    - `decide(score)` maps the weighted score to one of 4 bands: `>=80: "Go"`,
+      `>=65: "Go (Management Review)"`, `>=50: "Conditional-Go (Partner Required)"`,
+      else `"No-Go"` — overridden to `"No-Go"` if any hard gate triggered, regardless
+      of score. `gaps` surfaces the triggered gate names.
+    - Both constants live as hardcoded Python dicts/tuples in `reduce_pass.py` (same
+      pattern as `SEVERITY_BY_CATEGORY` below), not DB tables — a deliberate Phase 1
+      scope call, `docs/DECISIONS.md #63`.
+    - `docs/DECISIONS.md #68`: each criterion also carries `criterion_type`
+      (`"eligibility"` vs `"procedural"`) — `check_hard_gates` only ever considers
+      `"eligibility"` criteria (a `"procedural"` one, e.g. "self-attested English
+      translation," can never trigger a gate, even if mistagged — enforced in code,
+      not only the prompt). `status` also has a 3rd value, `"insufficient_data"` (no
+      relevant company data at all), which behaves like `"fail"` for gate purposes
+      until a human resolves it.
+    - `docs/DECISIONS.md #69`: `apply_human_overrides(result, overrides)` applies a
+      bid-team member's review of specific `"insufficient_data"`/`"fail"` eligibility
+      criteria and recomputes `decision`/`gaps` (never `factor_scores` — a stated
+      scope boundary) via the same `check_hard_gates`/`decide` — never a second LLM
+      call. Reached via `PATCH /documents/{id}/analysis/go_no_go/review`
+      (`routes_analysis.py`, §3.12).
   - `run_risk_finder(db, document)`: sends aggregated `risk_candidates` to the model,
     which may only merge/dedupe/discard and return `category`/`clause_summary`/
     `page_ref` — never a severity. Severity comes from the code-based
@@ -579,7 +616,12 @@ do quick DB reads/writes, no long-running I/O held open.
   just page-extraction progress, without any separate progress-tracking table.
 - **`routes_analysis.py`** — `GET /documents/{id}/analysis/{module}` and `GET
   /documents/{id}/analysis` — read-only, via `analysis_reader`; a 404 means "not
-  analyzed yet," never triggers a reduce pass itself.
+  analyzed yet," never triggers a reduce pass itself. `PATCH
+  /documents/{id}/analysis/go_no_go/review` (`docs/DECISIONS.md #69`) is the one
+  write here — applies human review of specific eligibility criteria via
+  `reduce_pass.apply_human_overrides`, re-validates through the same
+  `validate_analysis_result` guardrail every fresh LLM result goes through, persists,
+  and returns the updated analysis. Never calls the LLM.
 - **`routes_pages.py`** — `GET /documents/{id}/pages/{n}` (JSON: text, classification,
   confidence, `has_image` flag) and `GET /documents/{id}/pages/{n}/image` (raw PNG
   bytes) — this is literally what the citation-verification UI calls when a user
@@ -714,6 +756,9 @@ being reachable locally).
 
 ### 5.2 `tests/unit/` — one line per file
 
+- `test_apply_human_overrides.py` — `reduce_pass.apply_human_overrides` recomputes
+  gates/decision from overridden statuses, never touches `factor_scores`, rejects an
+  out-of-range index or a `"procedural"` criterion (`docs/DECISIONS.md #69`).
 - `test_celery_task_config.py` — every LLM task is actually wired to the `"llm"` queue
   with the right time limits (no broker needed).
 - `test_chunk.py` — `plan_chunk_ranges`/`build_chunks`/`chunk_page_text` logic.
@@ -727,6 +772,9 @@ being reachable locally).
 - `test_extract_native.py` — `extract_page_text`/`extract_table_structure` against
   real fixture PDFs.
 - `test_extract_vision.py` — vision extraction with the LLM call mocked.
+- `test_hard_gates.py` — `check_hard_gates`: each of the 7 gates individually, a
+  `"procedural"` criterion never triggers one even if tagged, `"insufficient_data"`
+  triggers like `"fail"`, and a `human_override` always wins over the original status.
 - `test_health.py` — `/health` returns ok.
 - `test_ingestion.py` — the ingestion orchestrator with a mocked DB session and
   moto-mocked S3 (real fixture PDF bytes actually round-trip through classify/extract;
@@ -744,6 +792,8 @@ being reachable locally).
   mocked, no real DB.
 - `test_report_cost.py` — `scripts/report_cost.py`'s arithmetic against fake
   chunk/extraction data.
+- `test_routes_analysis.py` — the GET serving routes and the `PATCH .../go_no_go/
+  review` endpoint (404/422/200 cases, auth required) with a mocked DB.
 - `test_routes_auth.py` — `POST /token` with the Redis rate limiter faked.
 - `test_routes_company_profiles.py` — the CRUD routes.
 - `test_routes_ingest.py` — upload validation and the not-found status path (no real
@@ -753,6 +803,9 @@ being reachable locally).
 - `test_security.py` — JWT create/decode and password hash/verify.
 - `test_seed_company_profile.py` — `scripts/seed_company_profile.py`'s upsert logic.
 - `test_structured.py` — `complete_structured`'s parse-retry logic, LLM mocked.
+- `test_tasks_reduce_profile_dict.py` — `_profile_to_dict` sends every real
+  `company_profiles` field except `unconfirmed_org_turnover_inr` (`docs/DECISIONS.md
+  #66`), which must never be sent, verified explicitly.
 - `test_tracing.py` — `trace_llm_call`/`_record_generation` against a faked Langfuse
   client.
 

@@ -165,8 +165,10 @@ def test_decision_is_computed_from_status_never_from_raw_model_text(monkeypatch)
                 company_value="INR 72 Cr",
                 status="fail",
                 page_ref=2,
+                gate="Turnover not met and no valid exemption",
             )
-        ]
+        ],
+        factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 0),
     )
     monkeypatch.setattr(
         reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
@@ -229,6 +231,6 @@ def test_incomplete_profile_yields_conditional_go(adversarial_rows, company_prof
 
     analysis = reduce_pass.run_go_no_go(db, document, profile)
 
-    assert analysis.result["decision"] == "Conditional-Go"
+    assert analysis.result["decision"] == "Conditional-Go (Partner Required)"
     for gap in row["expected_gaps"]:
         assert gap in analysis.result["gaps"]

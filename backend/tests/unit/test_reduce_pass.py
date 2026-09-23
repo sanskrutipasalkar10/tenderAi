@@ -147,7 +147,7 @@ def test_go_no_go_incomplete_profile_skips_llm_and_returns_conditional_go(monkey
 
     analysis = reduce_pass.run_go_no_go(db, document, INCOMPLETE_PROFILE)
 
-    assert analysis.result["decision"] == "Conditional-Go"
+    assert analysis.result["decision"] == "Conditional-Go (Partner Required)"
     assert set(analysis.result["gaps"]) == {"certifications", "sectors"}
     assert analysis.model_used is None
 
@@ -164,7 +164,7 @@ def test_go_no_go_no_criteria_found_skips_llm(monkeypatch) -> None:
 
     analysis = reduce_pass.run_go_no_go(db, document, QUALIFIED_PROFILE)
 
-    assert analysis.result["decision"] == "Conditional-Go"
+    assert analysis.result["decision"] == "Conditional-Go (Partner Required)"
     assert "No eligibility criteria found" in analysis.result["gaps"][0]
 
 
@@ -187,9 +187,11 @@ def test_go_no_go_all_pass_yields_go_decision(monkeypatch) -> None:
                 company_value="INR 72 Cr",
                 status="pass",
                 page_ref=1,
+                gate=None,
             )
         ],
         next_steps=["Prepare EMD"],
+        factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 100),
     )
     monkeypatch.setattr(
         reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
@@ -222,8 +224,10 @@ def test_go_no_go_any_fail_yields_no_go_decision(monkeypatch) -> None:
                 company_value="INR 72 Cr",
                 status="fail",
                 page_ref=1,
+                gate="Turnover not met and no valid exemption",
             )
-        ]
+        ],
+        factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 0),
     )
     monkeypatch.setattr(
         reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
@@ -233,6 +237,7 @@ def test_go_no_go_any_fail_yields_no_go_decision(monkeypatch) -> None:
 
     assert analysis.result["decision"] == "No-Go"
     assert analysis.result["score"] == 0
+    assert analysis.result["gaps"] == ["Turnover not met and no valid exemption"]
 
 
 # --- risk_finder ---------------------------------------------------------------------

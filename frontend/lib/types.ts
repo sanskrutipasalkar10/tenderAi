@@ -44,20 +44,43 @@ export interface DocumentAnalysisResponse<TResult = unknown> {
 
 // --- go_no_go ------------------------------------------------------------------
 
+export type GoNoGoStatus = "pass" | "fail" | "insufficient_data";
+export type GoNoGoCriterionType = "eligibility" | "procedural";
+
+export interface GoNoGoHumanOverride {
+  status: "pass" | "fail";
+  note: string | null;
+  original_status: GoNoGoStatus;
+  reviewed_at: string;
+}
+
 export interface GoNoGoCriterionMatch {
   criterion: string;
   required: string;
   company_value: string;
-  status: "pass" | "fail";
+  status: GoNoGoStatus;
   page_ref: number;
+  // One of the 7 named hard-fail gates if this criterion's failure triggers one,
+  // else null — see backend/app/pipeline/reduce_pass.py's HARD_FAIL_GATES. Never set
+  // on a "procedural" criterion.
+  gate: string | null;
+  // "eligibility" (a real company-capability fact) vs. "procedural" (a bid-package
+  // mechanic any bidder can satisfy — excluded from scoring/gates entirely).
+  criterion_type: GoNoGoCriterionType;
+  human_override: GoNoGoHumanOverride | null;
 }
+
+// The 8 weighted Bid/No-Bid factors (backend/app/pipeline/reduce_pass.py's
+// BID_DECISION_FACTOR_WEIGHTS), each scored 0-100 by the model.
+export type GoNoGoFactorScores = Record<string, number>;
 
 export interface GoNoGoResult {
   score: number;
-  decision: "Go" | "Conditional-Go" | "No-Go";
+  decision: "Go" | "Go (Management Review)" | "Conditional-Go (Partner Required)" | "No-Go";
   criteria_matches: GoNoGoCriterionMatch[];
   gaps: string[];
   next_steps: string[];
+  factor_scores: GoNoGoFactorScores | null;
 }
 
 // --- risk_finder ---------------------------------------------------------------
@@ -115,6 +138,41 @@ export interface CompanyProfilePastProject {
   sector: string | null;
 }
 
+export interface CompanyProfileDirector {
+  name: string;
+  din_or_pan: string | null;
+  designation: string | null;
+  category: string | null;
+  appointed: string | null;
+}
+
+export interface CompanyProfileMsmeClassification {
+  year: string;
+  type: string;
+}
+
+export interface CompanyProfileGovernmentGrant {
+  department: string;
+  source: string | null;
+  fy: string | null;
+  amount: number | null;
+  purpose: string | null;
+}
+
+export interface CompanyProfileBankDetails {
+  bank: string | null;
+  ifsc: string | null;
+  account: string | null;
+}
+
+export interface CompanyProfileEmploymentCount {
+  male: number | null;
+  female: number | null;
+  other: number | null;
+}
+
+// Statutory/financial fields (migration 0003, docs/sutf-company-profile-decision-
+// grade.docx) — mirrors backend/app/models/schemas.py's CompanyProfileWrite exactly.
 export interface CompanyProfileWrite {
   company_name: string;
   annual_turnover: Record<string, number> | null;
@@ -123,6 +181,27 @@ export interface CompanyProfileWrite {
   geographic_presence: string[] | null;
   sectors: string[] | null;
   max_capacity_pct: number | null;
+  cin: string | null;
+  roc_number: string | null;
+  section8_licence_number: string | null;
+  date_of_incorporation: string | null;
+  pan: string | null;
+  gstin: string | null;
+  udyam_registration_number: string | null;
+  msme_classification: CompanyProfileMsmeClassification[] | null;
+  ngo_darpan_id: string | null;
+  authorised_capital_inr: number | null;
+  paid_up_capital_inr: number | null;
+  net_worth_inr: number | null;
+  // Must be set whenever annual_turnover is (enforced by the backend) — names which
+  // document annual_turnover's figures came from.
+  turnover_source: string | null;
+  // Retained, never used for scoring, until entity attribution is confirmed.
+  unconfirmed_org_turnover_inr: Record<string, number> | null;
+  directors: CompanyProfileDirector[] | null;
+  bank_details: CompanyProfileBankDetails | null;
+  employment_count: CompanyProfileEmploymentCount | null;
+  government_grants: CompanyProfileGovernmentGrant[] | null;
 }
 
 export interface CompanyProfileResponse extends CompanyProfileWrite {

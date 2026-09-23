@@ -14,10 +14,13 @@ as fields get filled in.
 
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 from app.models.company_profile import CompanyProfile
 from app.storage.db import SessionLocal
+
+_DATE_FIELDS = ("date_of_incorporation",)
 
 PROFILE_FIELDS = (
     "company_name",
@@ -27,6 +30,26 @@ PROFILE_FIELDS = (
     "geographic_presence",
     "sectors",
     "max_capacity_pct",
+    # Statutory/financial fields (migration 0003, docs/sutf-company-profile-
+    # decision-grade.docx).
+    "cin",
+    "roc_number",
+    "section8_licence_number",
+    "date_of_incorporation",
+    "pan",
+    "gstin",
+    "udyam_registration_number",
+    "msme_classification",
+    "ngo_darpan_id",
+    "authorised_capital_inr",
+    "paid_up_capital_inr",
+    "net_worth_inr",
+    "turnover_source",
+    "unconfirmed_org_turnover_inr",
+    "directors",
+    "bank_details",
+    "employment_count",
+    "government_grants",
 )
 
 
@@ -45,8 +68,14 @@ def upsert_profile(db, payload: dict) -> CompanyProfile:
     )
     profile = existing or CompanyProfile(company_name=payload["company_name"])
     for field in PROFILE_FIELDS:
-        if field in payload:
-            setattr(profile, field, payload[field])
+        if field not in payload:
+            continue
+        value = payload[field]
+        # JSON has no date type — plain ISO strings ("2017-09-20") need converting to
+        # real date objects, or SQLAlchemy's Date column type rejects them at flush.
+        if field in _DATE_FIELDS and isinstance(value, str):
+            value = date.fromisoformat(value)
+        setattr(profile, field, value)
 
     if existing is None:
         db.add(profile)

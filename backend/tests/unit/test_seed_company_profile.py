@@ -65,7 +65,9 @@ def test_upsert_updates_the_existing_profile_in_place_not_a_duplicate() -> None:
 
 def test_unknown_field_in_payload_is_rejected() -> None:
     db = _FakeSession()
-    payload = {"company_name": "Acme Infra", "gstin": "27AAAAA0000A1Z5"}
+    # gstin is a real column as of migration 0003 — use a field that's genuinely not
+    # in company_profiles' schema instead.
+    payload = {"company_name": "Acme Infra", "totally_made_up_field": "x"}
 
     with pytest.raises(ValueError, match="not in company_profiles"):
         upsert_profile(db, payload)

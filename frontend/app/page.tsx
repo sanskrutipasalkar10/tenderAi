@@ -183,7 +183,7 @@ function HeroPreview() {
             </p>
           </div>
           <div className="flex-none">
-            <DecisionBadge decision="Conditional-Go" />
+            <DecisionBadge decision="Conditional-Go (Partner Required)" />
           </div>
         </div>
         <div className="flex flex-col items-center gap-6 border-t border-slate-100 pt-5 sm:flex-row">
