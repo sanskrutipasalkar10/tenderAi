@@ -55,6 +55,19 @@ minio_data/
 # artifacts from live-browser verification, not project source.
 .playwright-mcp/
 
+# Local Claude Code tool config — MCP server list, downloaded skills, the skills lock
+# file. Personal/machine-local dev tooling, not project source; committing it would
+# also mean every contributor's local skill set silently diverges from whatever gets
+# pushed here.
+.mcp.json
+backend/.claude/
+backend/skills-lock.json
+
+# Business-sensitive internal documents (vendor/cost proposals, etc.) — same
+# reasoning as docs/C4i4_company_docs/ above: real figures for this company, repo is
+# public, kept local only.
+documents/*.docx
+
 # OS
 .DS_Store
 Thumbs.db
