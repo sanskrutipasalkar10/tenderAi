@@ -52,8 +52,16 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
       if (prev.status !== status.status) {
         push(STATUS_MESSAGE[status.status]);
       }
-      if (status.total_pages && status.pages_processed > prev.pages_processed) {
-        push(`Extracted page ${status.pages_processed} of ${status.total_pages}`);
+      // Main-document extraction (page-by-page, against the uploaded PDF's own known
+      // page count) is logged separately from linked-document extraction (no fixed
+      // denominator known in advance — a document's hyperlinks resolve to whatever
+      // page counts they resolve to) — mixing them into one "X of Y" line is exactly
+      // what produced a nonsensical "page 48 of 6" log entry (docs/DECISIONS.md).
+      if (status.total_pages && status.main_document_pages > prev.main_document_pages) {
+        push(`Extracted page ${status.main_document_pages} of ${status.total_pages}`);
+      }
+      if (status.linked_documents_found > prev.linked_documents_found) {
+        push(`Found and processed linked document ${status.linked_documents_found}`);
       }
       if (status.chunks_total > 0 && prev.chunks_total === 0) {
         push(`Built ${status.chunks_total} chunk${status.chunks_total === 1 ? "" : "s"} for analysis`);

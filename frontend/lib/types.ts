@@ -25,6 +25,12 @@ export interface DocumentStatusResponse {
   status: DocumentStatus;
   total_pages: number | null;
   pages_processed: number;
+  // Split from pages_processed — how many pages came from the uploaded PDF itself vs.
+  // a hyperlink found inside it (docs/DECISIONS.md). Avoids a nonsensical "48/6 pages
+  // processed" ratio while hyperlinked documents are still being fetched, since
+  // pages_processed legitimately exceeds total_pages during that window.
+  main_document_pages: number;
+  linked_documents_found: number;
   chunks_total: number;
   chunks_mapped: number;
   modules_ready: AnalysisModule[];
@@ -74,6 +80,29 @@ export interface GoNoGoCriterionMatch {
 // BID_DECISION_FACTOR_WEIGHTS), each scored 0-100 by the model.
 export type GoNoGoFactorScores = Record<string, number>;
 
+// "not_applicable" (distinct from GoNoGoStatus): the fixed 28-item PQ checklist always
+// has one row per category, and most tenders won't state a requirement for every one.
+export type PQChecklistStatus = "pass" | "fail" | "insufficient_data" | "not_applicable";
+
+export interface PQChecklistItem {
+  category: string;
+  tender_requirement: string | null;
+  company_value: string | null;
+  status: PQChecklistStatus;
+  page_ref: number | null;
+}
+
+export interface MapPassDocumentRequirement {
+  description: string;
+  page_ref: number;
+}
+
+// The 12 weighted Technical Qualification factors (backend/app/pipeline/
+// reduce_pass.py's TQ_FACTOR_WEIGHTS) — Section B, distinct from the 8-factor
+// "Quick" score above.
+export type TQFactorScores = Record<string, number>;
+export type TQCompetitivenessLevel = "LOW" | "MEDIUM" | "HIGH";
+
 export interface GoNoGoResult {
   score: number;
   decision: "Go" | "Go (Management Review)" | "Conditional-Go (Partner Required)" | "No-Go";
@@ -81,6 +110,22 @@ export interface GoNoGoResult {
   gaps: string[];
   next_steps: string[];
   factor_scores: GoNoGoFactorScores | null;
+  // The fixed 28-item PQ checklist (backend/app/pipeline/reduce_pass.py's
+  // PQ_CHECKLIST_CATEGORIES) — informational only, null if the separate LLM call that
+  // produces it failed (degrades gracefully, never blocks the main decision).
+  pq_checklist: PQChecklistItem[] | null;
+  // The literal document/attachment submission checklist — needs no LLM call here
+  // (already extracted per-chunk by map_pass) and no company profile, so it's always
+  // populated, including on the Conditional-Go short-circuit paths.
+  documents_required: MapPassDocumentRequirement[];
+  // Section B (12-item TQ score) + Section C's two judgment-based fields — same
+  // additive/null-on-short-circuit-or-call-failure pattern as pq_checklist.
+  tq_score: number | null;
+  tq_factor_scores: TQFactorScores | null;
+  commercial_competitiveness: TQCompetitivenessLevel | null;
+  bid_preparation_effort: TQCompetitivenessLevel | null;
+  major_qualification_gap: string | null;
+  major_technical_gap: string | null;
 }
 
 // --- risk_finder ---------------------------------------------------------------
@@ -126,6 +171,10 @@ export interface PageContentResponse {
   raw_text: string | null;
   confidence_score: number | null;
   has_image: boolean;
+  // Set when this page's content came from a hyperlink found inside the uploaded PDF
+  // rather than the PDF itself (docs/DECISIONS.md — GeM tenders link out to the real
+  // tender content instead of embedding it) — null for every page of the uploaded PDF.
+  source_url: string | null;
 }
 
 // --- company_profiles --------------------------------------------------------

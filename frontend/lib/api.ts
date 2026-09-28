@@ -117,6 +117,12 @@ export function reviewGoNoGo(
   });
 }
 
+export function resubmitGoNoGo(documentId: string): Promise<DocumentAnalysisResponse<GoNoGoResult>> {
+  // Triggers a real LLM call (fresh factor_scores against the already-reviewed
+  // criteria_matches), unlike reviewGoNoGo above — see docs/DECISIONS.md.
+  return apiFetch(`/documents/${documentId}/analysis/go_no_go/resubmit`, { method: "POST" });
+}
+
 export function getPageContent(
   documentId: string,
   pageNumber: number,

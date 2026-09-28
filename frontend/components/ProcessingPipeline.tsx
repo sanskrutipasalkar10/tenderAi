@@ -58,10 +58,6 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
 
   const activeIndex = stepIndexForStatus(status.status);
   const progressPct = STEPS.length > 1 ? activeIndex / (STEPS.length - 1) : 0;
-  const pageProgress =
-    status.total_pages && status.total_pages > 0
-      ? Math.min(1, status.pages_processed / status.total_pages)
-      : null;
   const chunkProgress =
     status.chunks_total > 0 ? Math.min(1, status.chunks_mapped / status.chunks_total) : null;
   const moduleProgress = status.modules_ready.length / 3;
@@ -147,13 +143,25 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
 
       {status.status !== "ready" && (
         <div className="mt-8 space-y-5">
-          {pageProgress !== null && (status.status === "extracting" || status.status === "extracted") && (
-            <ProgressBar
-              label="Pages extracted"
-              value={status.pages_processed}
-              total={status.total_pages ?? 0}
-              fraction={pageProgress}
-            />
+          {(status.status === "extracting" || status.status === "extracted") && (
+            // Three honest counters rather than a single "X/Y" fraction (docs/
+            // DECISIONS.md) — once a hyperlinked document's pages start getting
+            // appended, pages_processed legitimately exceeds the uploaded PDF's own
+            // page count, and total_pages itself only becomes the final combined
+            // count once every link has been fetched. A fraction against either
+            // number reads as broken ("48/6 pages processed") during that window;
+            // three separately-labeled counts never lie about what's known yet.
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatBlock
+                label="Main document"
+                value={`${status.main_document_pages} page${status.main_document_pages === 1 ? "" : "s"}`}
+              />
+              <StatBlock
+                label="Linked documents found"
+                value={String(status.linked_documents_found)}
+              />
+              <StatBlock label="Total pages extracted" value={String(status.pages_processed)} />
+            </div>
           )}
           {status.status === "analyzing" && chunkProgress !== null && (
             <ProgressBar
@@ -173,6 +181,15 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="data-mono mt-1 text-lg font-semibold text-ink-900">{value}</p>
     </div>
   );
 }

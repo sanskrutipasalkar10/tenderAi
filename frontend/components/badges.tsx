@@ -1,4 +1,9 @@
-import type { DocumentStatus, GoNoGoCriterionMatch, GoNoGoResult, RiskFinderRisk } from "@/lib/types";
+import type {
+  DocumentStatus,
+  GoNoGoResult,
+  PQChecklistStatus,
+  RiskFinderRisk,
+} from "@/lib/types";
 
 const DECISION_STYLES: Record<GoNoGoResult["decision"], string> = {
   Go: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
@@ -34,20 +39,22 @@ export function SeverityBadge({ severity }: { severity: RiskFinderRisk["severity
   );
 }
 
-const CRITERION_STYLES: Record<GoNoGoCriterionMatch["status"], string> = {
+const CRITERION_STYLES: Record<PQChecklistStatus, string> = {
   pass: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
   fail: "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",
   insufficient_data:
     "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
+  not_applicable: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
 };
 
-const CRITERION_LABEL: Record<GoNoGoCriterionMatch["status"], string> = {
+const CRITERION_LABEL: Record<PQChecklistStatus, string> = {
   pass: "pass",
   fail: "fail",
   insufficient_data: "needs review",
+  not_applicable: "not applicable",
 };
 
-export function CriterionStatusBadge({ status }: { status: GoNoGoCriterionMatch["status"] }) {
+export function CriterionStatusBadge({ status }: { status: PQChecklistStatus }) {
   return (
     <span
       className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${CRITERION_STYLES[status]}`}

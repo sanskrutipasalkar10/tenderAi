@@ -26,11 +26,11 @@ export default function CitationLink({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex cursor-pointer items-center gap-1.5 rounded text-left text-accent decoration-accent/40 decoration-dotted underline-offset-2 hover:underline"
+        className="group inline-flex cursor-pointer items-start gap-1.5 rounded text-left text-accent decoration-accent/40 decoration-dotted underline-offset-2 hover:underline"
         title={`View source — page ${pageRef}`}
       >
         {children}
-        <span className="data-mono inline-flex items-center rounded border border-accent/30 bg-accent/5 px-1.5 py-0.5 text-[11px] font-semibold text-accent group-hover:bg-accent/10">
+        <span className="data-mono mt-0.5 inline-flex flex-none items-center rounded border border-accent/30 bg-accent/5 px-1.5 py-0.5 text-[11px] font-semibold text-accent group-hover:bg-accent/10">
           p.{pageRef}
         </span>
       </button>
@@ -99,6 +99,11 @@ function PageViewerModal({
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink-900">
             Source — <span className="data-mono">page {pageRef}</span>
+            {page?.source_url && (
+              <span className="ml-2 inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                linked document
+              </span>
+            )}
           </h2>
           <button
             type="button"
@@ -116,6 +121,20 @@ function PageViewerModal({
 
         {page && (
           <div className="space-y-4">
+            {page.source_url && (
+              <p className="text-xs text-slate-500">
+                This page came from a hyperlink inside the uploaded document, not the
+                document itself —{" "}
+                <a
+                  href={page.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all text-accent underline decoration-accent/40 decoration-dotted underline-offset-2 hover:decoration-solid"
+                >
+                  {page.source_url}
+                </a>
+              </p>
+            )}
             <div className="data-mono flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
               <span>Classification: {page.classification}</span>
               {page.extraction_method && <span>Extracted via: {page.extraction_method}</span>}

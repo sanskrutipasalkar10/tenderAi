@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import CompanyChecklistView from "@/components/CompanyChecklistView";
 import GoNoGoCard from "@/components/GoNoGoCard";
 import ProcessingLog from "@/components/ProcessingLog";
 import ProcessingPipeline from "@/components/ProcessingPipeline";
@@ -20,9 +21,15 @@ import type {
   SynopsisResult,
 } from "@/lib/types";
 
-const TABS: { module: AnalysisModule; label: string }[] = [
+// "company_checklist" is a UI-only tab, not a real AnalysisModule — it has no
+// dedicated backend endpoint, it just renders a different view of the already-fetched
+// go_no_go analysis (CompanyChecklistView).
+type UiTab = AnalysisModule | "company_checklist";
+
+const TABS: { module: UiTab; label: string }[] = [
   { module: "go_no_go", label: "Go / No-Go" },
   { module: "synopsis", label: "Synopsis" },
+  { module: "company_checklist", label: "Company Checklist" },
   { module: "risk_finder", label: "Risk Finder" },
 ];
 
@@ -43,7 +50,7 @@ function DocumentDetail({ documentId }: { documentId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<DocumentStatusResponse | null>(null);
   const [analyses, setAnalyses] = useState<DocumentAnalysisResponse[]>([]);
-  const [activeTab, setActiveTab] = useState<AnalysisModule>("go_no_go");
+  const [activeTab, setActiveTab] = useState<UiTab>("go_no_go");
   const [error, setError] = useState<string | null>(null);
   const wasReady = useRef(false);
 
@@ -86,7 +93,11 @@ function DocumentDetail({ documentId }: { documentId: string }) {
     };
   }, [documentId]);
 
-  const activeResult = analyses.find((a) => a.module === activeTab);
+  const goNoGoAnalysis = analyses.find((a) => a.module === "go_no_go");
+  const activeResult =
+    activeTab === "company_checklist"
+      ? goNoGoAnalysis
+      : analyses.find((a) => a.module === activeTab);
   const isProcessing = status !== null && !TERMINAL_STATUSES.has(status.status);
 
   return (
@@ -186,6 +197,13 @@ function DocumentDetail({ documentId }: { documentId: string }) {
                   <SynopsisView
                     documentId={documentId}
                     result={activeResult.result as SynopsisResult}
+                    goNoGoResult={goNoGoAnalysis ? (goNoGoAnalysis.result as GoNoGoResult) : null}
+                  />
+                )}
+                {activeResult && activeTab === "company_checklist" && (
+                  <CompanyChecklistView
+                    documentId={documentId}
+                    goNoGoResult={activeResult.result as GoNoGoResult}
                   />
                 )}
                 {activeResult && activeTab === "risk_finder" && (
