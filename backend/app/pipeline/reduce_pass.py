@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DataQualityError
+from app.core.exceptions import DataQualityError, ProviderError
 from app.core.logging import get_logger
 from app.guardrails.output_checks import validate_analysis_result
 from app.llm.structured import complete_structured
@@ -30,16 +30,21 @@ from app.models.schemas import (
     GoNoGoDecision,
     GoNoGoHumanOverride,
     GoNoGoLLMResult,
+    GoNoGoRescoreLLMResult,
     GoNoGoResult,
     GoNoGoStatus,
     MapPassAmountFact,
     MapPassCriterionFact,
     MapPassDateFact,
+    MapPassDocumentRequirement,
     MapPassResult,
+    PQChecklistItem,
+    PQChecklistLLMResult,
     RiskFinderLLMResult,
     RiskFinderResult,
     SynopsisLLMResult,
     SynopsisResult,
+    TQScoringLLMResult,
 )
 from app.pipeline.citation_verify import verify_risk_citations
 from app.prompts.registry import load_prompt
@@ -64,7 +69,9 @@ REQUIRED_PROFILE_FIELDS = (
 # "risk severity thresholds... encode as an explicit rubric, not model discretion").
 # Derived from evals/datasets/golden_risk_finder.jsonl, where every fixture's
 # category->severity mapping is 100% consistent — this is a real, evidence-grounded
-# starting rubric, not a guess. See docs/DECISIONS.md #39.
+# starting rubric, not a guess. See docs/DECISIONS.md #39. Kept as a small, high-
+# confidence exact-match tier — everything else falls through to the keyword rubric
+# below (docs/DECISIONS.md #78), not straight to a flat default.
 SEVERITY_BY_CATEGORY: dict[str, str] = {
     "Liquidated Damages": "HIGH",
     "Indemnity": "HIGH",
@@ -72,16 +79,45 @@ SEVERITY_BY_CATEGORY: dict[str, str] = {
     "Termination": "MEDIUM",
     "Force Majeure": "LOW",
 }
-# Unrecognized category -> safe middle default, logged below. Confirmed a real, common
-# case in practice, not just a theoretical fallback: a live validation run against a
-# real tender found 11 of its 11 real risk categories (EMD Forfeiture, Security
-# Deposit Recovery, Right to Reverse Auction, etc.) fell outside the 5-category rubric
-# above, which was derived only from the small golden fixture set (docs/DECISIONS.md
-# #39) — the rubric needs real domain-expert review/expansion before this defaults to
-# anything more consequential than MEDIUM.
+
+# Keyword fallback for a category that doesn't exact-match the small rubric above
+# (docs/DECISIONS.md #78) — an LLM names the same underlying risk differently chunk to
+# chunk ("Indemnity", "Indemnification", "Patent Indemnity", and "Indemnity / Damages"
+# are all the same real exposure), so an exact-match-only rubric silently flattens
+# real variation to one default. Confirmed a real, common case, not a theoretical edge:
+# a live risk_finder run against a real tender produced 12 distinct categories, every
+# one outside the 5-category exact-match rubric, every one silently defaulted to the
+# same MEDIUM weight (docs/DECISIONS.md #39's own originally-flagged gap). These
+# keyword lists are built from those real category names plus others seen in real runs
+# this session (Unilateral Contract Cancellation, Risk Purchase, Termination without
+# Liability, Appropriation, Patent Indemnity, Bid Security Forfeiture, Tax Liability
+# and Indemnity, ...) — evidence-informed, not domain-expert-reviewed; still worth a
+# real legal/compliance review before being trusted as authoritative. Checked HIGH
+# first, then LOW, so a category matching both a HIGH and a LOW keyword (shouldn't
+# happen given the word choices, but not structurally impossible) takes the more
+# severe reading.
+_HIGH_SEVERITY_KEYWORDS = (
+    "indemni",  # Indemnity, Indemnification, Patent Indemnity, Indemnity / Damages —
+    # the common stem ("indemnit-y" vs "indemnif-ication" diverge right after it)
+    "damages",
+    "liquidated",
+    "forfeiture",  # Bid Security Forfeiture
+    "penalty",
+    "risk purchase",  # buyer procures a replacement at the seller's cost
+    "appropriation",  # buyer may deduct dues from payments on ANY contract
+    "cancellation",  # Unilateral Contract Cancellation
+    "without liability",  # Termination without Liability — one-sided, no recourse
+)
+_LOW_SEVERITY_KEYWORDS = (
+    "force majeure",
+    "subcontracting",  # an operational constraint, not a financial/legal exposure
+)
+# Unrecognized category (matches neither the exact-match rubric nor a keyword) -> safe
+# middle default, logged below — the rubric still needs real domain-expert review
+# before this defaults to anything more consequential than MEDIUM for a genuinely
+# novel category.
 DEFAULT_SEVERITY = "MEDIUM"
 
-# risk_score formula (docs/DECISIONS.md #39): a simple weighted count, capped at 100.
 _SEVERITY_WEIGHT = {"HIGH": 30, "MEDIUM": 15, "LOW": 5}
 
 # --- go_no_go: hard-fail gates + weighted score (Phase 1 of
@@ -110,6 +146,62 @@ BID_DECISION_FACTOR_WEIGHTS: dict[str, int] = {
     "Financial Capability": 5,
     "Strategic Relevance": 5,
     "Partner/OEM Availability": 5,
+}
+
+# The fixed 28-item Pre-Qualification checklist (Section A of
+# docs/C4i4_Tender_PQ_TQ_BID_NO_BID_Framework.xlsx, verbatim). Informational only —
+# never feeds check_hard_gates/compute_weighted_score/decide (docs/DECISIONS.md); a
+# separate completeness worksheet alongside criteria_matches, not a second scoring
+# path.
+PQ_CHECKLIST_CATEGORIES: tuple[str, ...] = (
+    "Legal entity / Section 8 eligibility",
+    "Registration requirements (GeM / CPPP / authority)",
+    "PAN",
+    "GST registration",
+    "Udyam / MSME status and applicable exemption",
+    "Startup / DPIIT exemption, if applicable",
+    "Average annual turnover",
+    "Net worth / financial capacity",
+    "Similar project experience",
+    "Number of qualifying similar projects",
+    "Minimum qualifying project value",
+    "Experience period / look-back period",
+    "Government / PSU experience",
+    "Domain-specific experience",
+    "Minimum manpower / employee strength",
+    "Key personnel qualifications and experience",
+    "Mandatory certifications (ISO / CMMI / other)",
+    "OEM authorization requirement",
+    "Technology / implementation partner requirement",
+    "Consortium / JV eligibility",
+    "Blacklisting / debarment declaration",
+    "Conflict of interest declaration",
+    "Local office / geographical presence requirement",
+    "EMD / bid security and exemption",
+    "Tender fee / exemption",
+    "Bid validity",
+    "Performance security / PBG capability",
+    "Other mandatory eligibility conditions",
+)
+
+# Section B — the 12-item Technical Qualification/Competitiveness score (Section B of
+# docs/C4i4_Tender_PQ_TQ_BID_NO_BID_Framework.xlsx, verbatim — weights sum to 100).
+# Distinct from BID_DECISION_FACTOR_WEIGHTS above (the 8-factor "Quick" score, Table
+# 26) — this is the framework's more detailed technical-competitiveness score,
+# informational alongside it, never replacing it.
+TQ_FACTOR_WEIGHTS: dict[str, int] = {
+    "Similar Project Experience": 20,
+    "Government/PSU Project Experience": 10,
+    "Relevant Industry 4.0/AI/ML Experience": 10,
+    "Technical Solution/Methodology": 15,
+    "Understanding of Requirements": 10,
+    "Proposed Architecture/Solution Design": 5,
+    "Key Personnel": 10,
+    "Technology Capability": 5,
+    "Implementation Methodology": 5,
+    "Project Management Approach": 5,
+    "Support/O&M Approach": 3,
+    "Innovation/Value Addition": 2,
 }
 
 
@@ -160,6 +252,18 @@ def compute_weighted_score(factor_scores: dict[str, int]) -> float:
     return sum(
         factor_scores[factor] * weight / 100
         for factor, weight in BID_DECISION_FACTOR_WEIGHTS.items()
+    )
+
+
+def compute_tq_score(factor_scores: dict[str, int]) -> float:
+    """Same reasoning as compute_weighted_score, over TQ_FACTOR_WEIGHTS instead —
+    Section B's own score, informational, never fed into check_hard_gates/decide.
+    """
+    missing = set(TQ_FACTOR_WEIGHTS) - set(factor_scores)
+    if missing:
+        raise ValueError(f"factor_scores is missing required TQ factors: {sorted(missing)}")
+    return sum(
+        factor_scores[factor] * weight / 100 for factor, weight in TQ_FACTOR_WEIGHTS.items()
     )
 
 
@@ -254,6 +358,7 @@ def _aggregate_chunk_facts(db: Session, document: Document) -> MapPassResult:
         aggregated.amounts.extend(result.amounts)
         aggregated.criteria.extend(result.criteria)
         aggregated.risk_candidates.extend(result.risk_candidates)
+        aggregated.documents_required.extend(result.documents_required)
     return aggregated
 
 
@@ -273,6 +378,22 @@ def _dedupe_facts(facts: Sequence[MapPassDateFact | MapPassAmountFact]) -> list[
         key = (fact.label, fact.value)
         if key not in seen:
             seen[key] = fact.model_dump()
+    return list(seen.values())
+
+
+def _dedupe_document_requirements(
+    items: Sequence[MapPassDocumentRequirement],
+) -> list[MapPassDocumentRequirement]:
+    """Same reasoning as _dedupe_facts (docs/DECISIONS.md #42) — chunk overlap means
+    the same document requirement (e.g. "PAN card copy") often gets extracted from
+    more than one chunk. Keyed on `description` alone (no separate label/value split
+    for this fact type) — exact-match only, no fuzzy merging, same simplicity as
+    _dedupe_facts.
+    """
+    seen: dict[str, MapPassDocumentRequirement] = {}
+    for item in items:
+        if item.description not in seen:
+            seen[item.description] = item
     return list(seen.values())
 
 
@@ -332,6 +453,10 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
     """
     missing_fields = _missing_profile_fields(company_profile)
     facts = _aggregate_chunk_facts(db, document)
+    # No LLM call, no company profile needed — "what to attach" is independent of
+    # whether we could determine eligibility, so this is computed once and included
+    # in every branch below, including both short-circuits.
+    documents_required = _dedupe_document_requirements(facts.documents_required)
 
     if missing_fields:
         logger.info(
@@ -340,7 +465,10 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
             missing_fields=missing_fields,
         )
         result = GoNoGoResult(
-            score=0, decision=_INSUFFICIENT_DATA_DECISION, gaps=missing_fields
+            score=0,
+            decision=_INSUFFICIENT_DATA_DECISION,
+            gaps=missing_fields,
+            documents_required=documents_required,
         )
         model_used = None
     elif not facts.criteria:
@@ -349,6 +477,7 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
             score=0,
             decision=_INSUFFICIENT_DATA_DECISION,
             gaps=["No eligibility criteria found in document"],
+            documents_required=documents_required,
         )
         model_used = None
     else:
@@ -363,6 +492,8 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
         triggered_gates = check_hard_gates(llm_result.criteria_matches)
         weighted_score = compute_weighted_score(llm_result.factor_scores)
         decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+
+        tq_result = _run_tq_scoring(facts, company_profile, document.id)
         result = GoNoGoResult(
             score=round(weighted_score),
             decision=decision,
@@ -370,6 +501,14 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
             gaps=triggered_gates,
             next_steps=llm_result.next_steps,
             factor_scores=llm_result.factor_scores,
+            pq_checklist=_run_pq_checklist(facts, company_profile, document.id),
+            documents_required=documents_required,
+            tq_score=round(compute_tq_score(tq_result.factor_scores)) if tq_result else None,
+            tq_factor_scores=tq_result.factor_scores if tq_result else None,
+            commercial_competitiveness=tq_result.commercial_competitiveness if tq_result else None,
+            bid_preparation_effort=tq_result.bid_preparation_effort if tq_result else None,
+            major_qualification_gap=tq_result.major_qualification_gap if tq_result else None,
+            major_technical_gap=tq_result.major_technical_gap if tq_result else None,
         )
 
     validated = validate_analysis_result("go_no_go", result.model_dump())
@@ -383,6 +522,195 @@ def _format_criteria_content(criteria: list[MapPassCriterionFact]) -> str:
 def _format_company_profile(company_profile: dict) -> str:
     lines = [f"{key}: {value}" for key, value in company_profile.items()]
     return "\n".join(lines)
+
+
+def _format_facts_content(facts: MapPassResult) -> str:
+    """Unlike _format_criteria_content (criteria only), includes dates/amounts too —
+    PQ categories like "EMD / bid security" or "Bid validity" sometimes land in
+    map-pass's dates/amounts lists rather than criteria, and the PQ checklist needs to
+    see those to check those categories properly.
+    """
+    lines = [f"[PAGE {c.page_ref}] {c.description}" for c in facts.criteria]
+    lines += [f"[PAGE {d.page_ref}] {d.label}: {d.value}" for d in facts.dates]
+    lines += [f"[PAGE {a.page_ref}] {a.label}: {a.value}" for a in facts.amounts]
+    return "\n".join(lines)
+
+
+def _run_pq_checklist(
+    facts: MapPassResult, company_profile: dict, document_id: UUID
+) -> list[PQChecklistItem] | None:
+    """The fixed 28-item PQ checklist (docs/DECISIONS.md) — a separate LLM call, not
+    folded into the main go_no_go prompt (that prompt already juggles criteria
+    matching, 7 gate names, criterion-type tagging, and 8 factor scores; this session
+    has real precedent, docs/DECISIONS.md #35-37, that overloaded prompts degrade
+    reliability). Informational only — never feeds check_hard_gates/
+    compute_weighted_score/decide.
+
+    A failure here must never block the main go_no_go decision (same resilience
+    principle as docs/DECISIONS.md #62) — catches ProviderError and returns None,
+    logging a warning, rather than letting the whole go_no_go analysis fail over a
+    secondary, informational artifact.
+    """
+    categories_list = "\n".join(f"- {c}" for c in PQ_CHECKLIST_CATEGORIES)
+    prompt = (
+        load_prompt("reduce", "v1_pq_checklist")
+        .replace("{categories}", categories_list)
+        .replace("{company_profile}", _format_company_profile(company_profile))
+        .replace("{content}", _format_facts_content(facts))
+    )
+    try:
+        llm_result, _ = complete_structured("reduce", prompt, PQChecklistLLMResult)
+    except ProviderError:
+        logger.warning("reduce_pass.pq_checklist_failed", document_id=str(document_id))
+        return None
+
+    returned_categories = {item.category for item in llm_result.items}
+    if returned_categories != set(PQ_CHECKLIST_CATEGORIES):
+        logger.warning(
+            "reduce_pass.pq_checklist_category_mismatch",
+            document_id=str(document_id),
+            missing=sorted(set(PQ_CHECKLIST_CATEGORIES) - returned_categories),
+            unexpected=sorted(returned_categories - set(PQ_CHECKLIST_CATEGORIES)),
+        )
+    return llm_result.items
+
+
+def _run_tq_scoring(
+    facts: MapPassResult, company_profile: dict, document_id: UUID
+) -> TQScoringLLMResult | None:
+    """Section B (12-item TQ score) + Section C's two judgment-based fields
+    (commercial_competitiveness, bid_preparation_effort) — a separate LLM call, same
+    reasoning as _run_pq_checklist (prompt-overload precedent, docs/DECISIONS.md
+    #35-37). Bundling C's two fields in here rather than a 4th separate call: they're
+    the same kind of holistic judgment as the 12 TQ factors, and a call split is only
+    justified when the topic is genuinely distinct (as PQ-checklist was from the main
+    go_no_go call).
+
+    Same graceful-degradation contract as _run_pq_checklist: a failure here must
+    never block the main go_no_go decision — catches ProviderError, returns None,
+    logs a warning.
+    """
+    factors_list = "\n".join(f"- {c}" for c in TQ_FACTOR_WEIGHTS)
+    prompt = (
+        load_prompt("reduce", "v1_tq_scoring")
+        .replace("{factors}", factors_list)
+        .replace("{company_profile}", _format_company_profile(company_profile))
+        .replace("{content}", _format_facts_content(facts))
+    )
+    try:
+        llm_result, _ = complete_structured("reduce", prompt, TQScoringLLMResult)
+    except ProviderError:
+        logger.warning("reduce_pass.tq_scoring_failed", document_id=str(document_id))
+        return None
+
+    missing = set(TQ_FACTOR_WEIGHTS) - set(llm_result.factor_scores)
+    if missing:
+        logger.warning(
+            "reduce_pass.tq_scoring_missing_factors",
+            document_id=str(document_id),
+            missing=sorted(missing),
+        )
+        return None
+    return llm_result
+
+
+def _format_reviewed_criteria_content(matches: list[GoNoGoCriterionMatch]) -> str:
+    """Formats criteria_matches for rescore_go_no_go's prompt — unlike
+    _format_criteria_content (raw criterion text only), each line states the
+    criterion's FINAL effective status (post human_override) as settled fact, plus an
+    explicit "[human-reviewed]" tag and the reviewer's note where one exists, so the
+    model treats a person's review as more reliable evidence than its own unreviewed
+    original judgment. Only "eligibility" criteria are included — "procedural" ones
+    never fed factor scoring/gates to begin with (same filter as check_hard_gates).
+    """
+    lines = []
+    for m in matches:
+        if m.criterion_type != "eligibility":
+            continue
+        effective = _effective_status(m)
+        tag = ""
+        if m.human_override:
+            tag = f" [human-reviewed: confirmed {effective}"
+            if m.human_override.note:
+                tag += f" — {m.human_override.note}"
+            tag += "]"
+        lines.append(
+            f"[PAGE {m.page_ref}] {m.criterion} "
+            f"(required: {m.required}; company value: {m.company_value}) "
+            f"-> {effective}{tag}"
+        )
+    return "\n".join(lines)
+
+
+def rescore_go_no_go(db: Session, document: Document, company_profile: dict) -> DocumentAnalysis:
+    """Resubmits ONLY the 8 factor_scores against an already-computed go_no_go
+    analysis's criteria_matches (including any human_override from the review
+    endpoint) — the "Resubmit analysis" action a bid-team member takes once they've
+    finished marking insufficient_data/fail criteria, so the score/decision actually
+    move to reflect their review (docs/DECISIONS.md's own predicted follow-up to #69,
+    which deliberately left factor_scores untouched by a plain review).
+
+    A genuinely separate LLM call, not a re-run of the main go_no_go prompt: the
+    criteria list and their final statuses are FIXED input here, never re-derived —
+    only the 8 factor scores are re-asked, grounded in those now-authoritative
+    statuses. check_hard_gates/compute_weighted_score/decide still run in code
+    afterward exactly as in run_go_no_go (hard rule 3) — this never lets the model
+    decide the outcome directly, it only re-judges the same 8 factors run_go_no_go
+    always asks for.
+
+    Unlike _run_pq_checklist/_run_tq_scoring (secondary, informational calls that
+    degrade to None on failure), this IS the primary action the user just triggered —
+    a ProviderError here is allowed to propagate to the caller (mapped to a 502 by
+    app.core.exceptions's handler) rather than being swallowed, so the user sees a
+    real "try again" error instead of a silent no-op.
+
+    Raises DataQualityError if no go_no_go analysis exists yet, or if its
+    factor_scores were never computed in the first place (the two pre-LLM
+    short-circuit paths in run_go_no_go have nothing to rescore).
+    """
+    existing = (
+        db.query(DocumentAnalysis)
+        .filter(DocumentAnalysis.document_id == document.id, DocumentAnalysis.module == "go_no_go")
+        .first()
+    )
+    if existing is None:
+        raise DataQualityError("No go_no_go analysis found for this document yet")
+
+    result = existing.result
+    if result.get("factor_scores") is None:
+        raise DataQualityError(
+            "This document's go_no_go analysis has no factor_scores to rescore "
+            "(it was short-circuited before the model ever ran — an incomplete "
+            "company profile or no eligibility criteria found)"
+        )
+
+    matches = [GoNoGoCriterionMatch.model_validate(m) for m in result["criteria_matches"]]
+    factors_list = "\n".join(f"- {factor}" for factor in BID_DECISION_FACTOR_WEIGHTS)
+    prompt = (
+        load_prompt("reduce", "v1_go_no_go_rescore")
+        .replace("{factors}", factors_list)
+        .replace("{company_profile}", _format_company_profile(company_profile))
+        .replace("{content}", _format_reviewed_criteria_content(matches))
+    )
+    llm_result, model_used = complete_structured("reduce", prompt, GoNoGoRescoreLLMResult)
+
+    triggered_gates = check_hard_gates(matches)
+    weighted_score = compute_weighted_score(llm_result.factor_scores)
+    decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+
+    updated_result = {
+        **result,
+        "factor_scores": llm_result.factor_scores,
+        "score": round(weighted_score),
+        "decision": decision,
+        "gaps": triggered_gates,
+    }
+    validated = validate_analysis_result("go_no_go", updated_result)
+    existing.result = validated
+    existing.model_used = model_used
+    db.commit()
+    db.refresh(existing)
+    return existing
 
 
 # --- risk_finder ---------------------------------------------------------------------
@@ -413,7 +741,7 @@ def run_risk_finder(db: Session, document: Document) -> DocumentAnalysis:
             for r in llm_result.risks
         ]
         risks_verified = verify_risk_citations(db, document.id, risks_with_severity)
-        risk_score = min(100, sum(_SEVERITY_WEIGHT[r["severity"]] for r in risks_verified))
+        risk_score = compute_risk_score([r["severity"] for r in risks_verified])
         result = RiskFinderResult.model_validate(
             {"risk_score": risk_score, "risks": risks_verified}
         )
@@ -428,16 +756,55 @@ def _format_risk_candidates_content(candidates: list) -> str:
     )
 
 
+def _keyword_severity(category: str) -> str | None:
+    lowered = category.lower()
+    if any(keyword in lowered for keyword in _HIGH_SEVERITY_KEYWORDS):
+        return "HIGH"
+    if any(keyword in lowered for keyword in _LOW_SEVERITY_KEYWORDS):
+        return "LOW"
+    return None
+
+
 def _severity_for_category(category: str) -> str:
     severity = SEVERITY_BY_CATEGORY.get(category)
-    if severity is None:
-        logger.warning(
-            "reduce_pass.unrecognized_risk_category",
+    if severity is not None:
+        return severity
+
+    keyword_severity = _keyword_severity(category)
+    if keyword_severity is not None:
+        logger.info(
+            "reduce_pass.risk_category_keyword_matched",
             category=category,
-            default_severity=DEFAULT_SEVERITY,
+            severity=keyword_severity,
         )
-        return DEFAULT_SEVERITY
-    return severity
+        return keyword_severity
+
+    logger.warning(
+        "reduce_pass.unrecognized_risk_category",
+        category=category,
+        default_severity=DEFAULT_SEVERITY,
+    )
+    return DEFAULT_SEVERITY
+
+
+def compute_risk_score(severities: list[str]) -> int:
+    """Diminishing-returns compounding (docs/DECISIONS.md #78) — replaces the old
+    uncapped-additive-sum-then-`min(100, ...)` formula, which saturated at 100 after
+    just 3-4 real risk clauses (confirmed against a real document: 4 HIGH + 8 MEDIUM
+    risks cleared the old cap with room to spare). Treats each risk's severity weight
+    as an independent probability of "this risk turns into a real problem" and
+    combines them the way independent probabilities combine — the chance that AT
+    LEAST ONE goes wrong: `1 - product(1 - weight/100)` across every risk, scaled to
+    0-100. A tender needs roughly 7-8 HIGH-severity risks to clear 90%, not 4 — but
+    the score still strictly increases with every additional risk found, so "more/
+    worse risks = higher score" still holds, just without the instant ceiling.
+    """
+    if not severities:
+        return 0
+    survival_probability = 1.0
+    for severity in severities:
+        survival_probability *= 1 - _SEVERITY_WEIGHT[severity] / 100
+    return round(100 * (1 - survival_probability))
 
 
 # --- synopsis --------------------------------------------------------------------

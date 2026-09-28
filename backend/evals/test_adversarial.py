@@ -39,9 +39,40 @@ from app.models.schemas import (
     GoNoGoLLMResult,
     MapPassCriterionFact,
     MapPassResult,
+    PQChecklistItem,
+    PQChecklistLLMResult,
+    TQScoringLLMResult,
 )
 from app.pipeline import dedupe, reduce_pass
 from app.prompts.registry import load_prompt
+
+
+def _fake_empty_pq_checklist() -> PQChecklistLLMResult:
+    return PQChecklistLLMResult(
+        items=[
+            PQChecklistItem(category=c, status="not_applicable")
+            for c in reduce_pass.PQ_CHECKLIST_CATEGORIES
+        ]
+    )
+
+
+def _fake_tq_scoring() -> TQScoringLLMResult:
+    return TQScoringLLMResult(
+        factor_scores=dict.fromkeys(reduce_pass.TQ_FACTOR_WEIGHTS, 50),
+        commercial_competitiveness="MEDIUM",
+        bid_preparation_effort="MEDIUM",
+        major_qualification_gap="None identified",
+        major_technical_gap="None identified",
+    )
+
+
+def _dispatch_by_schema(*results_by_schema: tuple[type, object]):
+    by_schema = dict(results_by_schema)
+
+    def _fake(task, prompt, schema):
+        return by_schema[schema], "test-model"
+
+    return _fake
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "pdfs"
 DATASET = Path(__file__).parent / "datasets" / "golden_adversarial.jsonl"
@@ -171,7 +202,13 @@ def test_decision_is_computed_from_status_never_from_raw_model_text(monkeypatch)
         factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 0),
     )
     monkeypatch.setattr(
-        reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
+        reduce_pass,
+        "complete_structured",
+        _dispatch_by_schema(
+            (GoNoGoLLMResult, fake_llm_result),
+            (PQChecklistLLMResult, _fake_empty_pq_checklist()),
+            (TQScoringLLMResult, _fake_tq_scoring()),
+        ),
     )
 
     analysis = reduce_pass.run_go_no_go(db, document, {

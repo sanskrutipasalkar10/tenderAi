@@ -71,11 +71,24 @@ class MapPassRiskCandidate(BaseModel):
     page_ref: int = Field(ge=0)
 
 
+class MapPassDocumentRequirement(BaseModel):
+    """A specific document/form/certificate copy the tender asks the bidder to
+    physically submit as part of the bid package — a literal packing-list item, not an
+    eligibility judgment. Can legitimately overlap with `criteria` (e.g. both a
+    turnover threshold and "submit audited balance sheet" may appear for the same
+    underlying requirement) — that's expected, not a data-quality issue.
+    """
+
+    description: str
+    page_ref: int = Field(ge=0)
+
+
 class MapPassResult(BaseModel):
     dates: list[MapPassDateFact] = Field(default_factory=list)
     amounts: list[MapPassAmountFact] = Field(default_factory=list)
     criteria: list[MapPassCriterionFact] = Field(default_factory=list)
     risk_candidates: list[MapPassRiskCandidate] = Field(default_factory=list)
+    documents_required: list[MapPassDocumentRequirement] = Field(default_factory=list)
 
 
 # --- Reduce-pass output (app/pipeline/reduce_pass.py) — validates each module's model
@@ -151,6 +164,66 @@ class GoNoGoLLMResult(BaseModel):
     factor_scores: dict[str, int] = Field(default_factory=dict)
 
 
+class GoNoGoRescoreLLMResult(BaseModel):
+    """What the model returns for the "Resubmit analysis" rescoring call
+    (app.pipeline.reduce_pass.rescore_go_no_go) — triggered once a bid-team member has
+    finished reviewing insufficient_data/fail criteria, so the 8 factor_scores can be
+    re-asked grounded in the now-authoritative, human-reviewed statuses. This call
+    never re-derives criteria_matches itself (those are fixed input, not re-asked) —
+    only factor_scores. score/decision/gaps are still computed in code from this
+    (CLAUDE.md hard rule 3), exactly as in the main go_no_go call.
+    """
+
+    factor_scores: dict[str, int] = Field(default_factory=dict)
+
+
+# "not_applicable" (distinct from GoNoGoStatus) — the fixed 28-item PQ checklist
+# (app.pipeline.reduce_pass.PQ_CHECKLIST_CATEGORIES) always has one row per category,
+# and most tenders won't state a requirement for every one of the 28 — that's a real,
+# common, different case from "unknown"/"fails," not an omission.
+PQChecklistStatus = Literal["pass", "fail", "insufficient_data", "not_applicable"]
+
+
+class PQChecklistItem(BaseModel):
+    category: str  # one of app.pipeline.reduce_pass.PQ_CHECKLIST_CATEGORIES
+    tender_requirement: str | None = None
+    company_value: str | None = None
+    status: PQChecklistStatus
+    page_ref: int | None = None
+
+
+class PQChecklistLLMResult(BaseModel):
+    """What the model returns for the separate PQ-checklist call
+    (app.pipeline.reduce_pass._run_pq_checklist) — informational only, never feeds
+    check_hard_gates/compute_weighted_score/decide (docs/DECISIONS.md).
+    """
+
+    items: list[PQChecklistItem] = Field(default_factory=list)
+
+
+# Used for both commercial_competitiveness and bid_preparation_effort — same 3-level
+# judgment shape, distinct meaning per field.
+TQCompetitivenessLevel = Literal["LOW", "MEDIUM", "HIGH"]
+
+
+class TQScoringLLMResult(BaseModel):
+    """What the model returns for the separate Section-B TQ-scoring call
+    (app.pipeline.reduce_pass._run_tq_scoring). Bundles the 12 TQ factor scores with
+    Section C's two genuinely-judgment-based fields (commercial_competitiveness,
+    bid_preparation_effort) and two free-text gap summaries — a 4th separate call per
+    document wasn't justified for just those two fields (docs/DECISIONS.md).
+    `tq_score` itself is computed in code from `factor_scores`
+    (app.pipeline.reduce_pass.compute_tq_score), never asked of the model directly
+    (hard rule 3).
+    """
+
+    factor_scores: dict[str, int] = Field(default_factory=dict)
+    commercial_competitiveness: TQCompetitivenessLevel
+    bid_preparation_effort: TQCompetitivenessLevel
+    major_qualification_gap: str
+    major_technical_gap: str
+
+
 class GoNoGoResult(BaseModel):
     """The full go_no_go document_analysis.result shape (docs/SPEC.md §6)."""
 
@@ -163,6 +236,29 @@ class GoNoGoResult(BaseModel):
     # docs/DECISIONS.md). None only for the pre-LLM short-circuit paths (missing
     # profile fields / no criteria found).
     factor_scores: dict[str, int] | None = None
+    # The fixed 28-item PQ checklist (docs/DECISIONS.md) — additive, informational
+    # only. None on the short-circuit paths above, or if the separate LLM call that
+    # produces it failed (degrades gracefully, never blocks the main decision).
+    pq_checklist: list[PQChecklistItem] | None = None
+    # The literal document/attachment submission checklist (docs/DECISIONS.md) —
+    # unlike pq_checklist, this needs no LLM call at all here (already extracted
+    # per-chunk by map_pass) and no company profile, so it's always populated —
+    # including on the short-circuit paths above, since "what to attach" doesn't
+    # depend on whether we could determine eligibility.
+    documents_required: list[MapPassDocumentRequirement] = Field(default_factory=list)
+    # Section B (12-item Technical Qualification score, docs/DECISIONS.md) — same
+    # additive/None-on-short-circuit-or-call-failure pattern as pq_checklist above.
+    # tq_score is compute_tq_score(tq_factor_scores), never asked of the model.
+    tq_score: int | None = None
+    tq_factor_scores: dict[str, int] | None = None
+    # Section C's two genuinely-judgment-based fields — the rest of Section C (PQ
+    # Gate, Expected TQ Score, Strategic Relevance, Partner Required, Final
+    # Recommendation) is assembled in the frontend from fields already above, not
+    # stored separately (docs/DECISIONS.md).
+    commercial_competitiveness: TQCompetitivenessLevel | None = None
+    bid_preparation_effort: TQCompetitivenessLevel | None = None
+    major_qualification_gap: str | None = None
+    major_technical_gap: str | None = None
 
 
 class GoNoGoCriterionOverride(BaseModel):
@@ -264,6 +360,15 @@ class DocumentStatusResponse(BaseModel):
     status: DocumentStatus
     total_pages: int | None = None
     pages_processed: int = 0
+    # Split out from total_pages/pages_processed (docs/DECISIONS.md #75/#77) — once a
+    # document's hyperlinks are being fetched, pages_processed legitimately exceeds
+    # total_pages (which briefly still holds just the uploaded PDF's own count until
+    # the fetch stage finishes), which read as a nonsensical ratio in the UI (e.g.
+    # "48/6 pages processed"). These two make what's actually happening explicit:
+    # how many pages came from the uploaded PDF itself, and how many distinct
+    # hyperlinked documents have been found/fetched so far.
+    main_document_pages: int = 0
+    linked_documents_found: int = 0
     chunks_total: int = 0
     chunks_mapped: int = 0
     modules_ready: list[AnalysisModule] = Field(default_factory=list)
@@ -296,6 +401,10 @@ class PageContentResponse(BaseModel):
     raw_text: str | None = None
     confidence_score: float | None = None
     has_image: bool
+    # Set when this page's content came from a hyperlink found inside the uploaded
+    # PDF rather than the PDF itself (docs/DECISIONS.md) — null for every page of the
+    # document actually uploaded.
+    source_url: str | None = None
 
 
 # --- company_profiles — CRUD for the reduce pass's go_no_go input (docs/DECISIONS.md

@@ -27,8 +27,39 @@ from app.models.schemas import (
     GoNoGoLLMResult,
     MapPassCriterionFact,
     MapPassResult,
+    PQChecklistItem,
+    PQChecklistLLMResult,
+    TQScoringLLMResult,
 )
 from app.pipeline import reduce_pass
+
+
+def _fake_empty_pq_checklist() -> PQChecklistLLMResult:
+    return PQChecklistLLMResult(
+        items=[
+            PQChecklistItem(category=c, status="not_applicable")
+            for c in reduce_pass.PQ_CHECKLIST_CATEGORIES
+        ]
+    )
+
+
+def _fake_tq_scoring() -> TQScoringLLMResult:
+    return TQScoringLLMResult(
+        factor_scores=dict.fromkeys(reduce_pass.TQ_FACTOR_WEIGHTS, 50),
+        commercial_competitiveness="MEDIUM",
+        bid_preparation_effort="MEDIUM",
+        major_qualification_gap="None identified",
+        major_technical_gap="None identified",
+    )
+
+
+def _dispatch_by_schema(*results_by_schema: tuple[type, object]):
+    by_schema = dict(results_by_schema)
+
+    def _fake(task, prompt, schema):
+        return by_schema[schema], "test-model"
+
+    return _fake
 
 DATASET = Path(__file__).parent / "datasets" / "golden_go_no_go.jsonl"
 PROFILES = Path(__file__).parent / "datasets" / "test_company_profiles.json"
@@ -136,7 +167,11 @@ def test_go_no_go_decision_matches_golden(monkeypatch, golden_rows, company_prof
         monkeypatch.setattr(
             reduce_pass,
             "complete_structured",
-            lambda *a, r=fake_llm_result, **k: (r, "test-model"),
+            _dispatch_by_schema(
+                (GoNoGoLLMResult, fake_llm_result),
+                (PQChecklistLLMResult, _fake_empty_pq_checklist()),
+                (TQScoringLLMResult, _fake_tq_scoring()),
+            ),
         )
 
         analysis = reduce_pass.run_go_no_go(db, document, profile)

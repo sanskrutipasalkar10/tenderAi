@@ -58,7 +58,7 @@ def go_no_go_task(self, document_id: str) -> str | None:
             if document.company_profile_id
             else None
         )
-        profile_dict = _profile_to_dict(profile)
+        profile_dict = profile_to_dict(profile)
         analysis = run_go_no_go(db, document, profile_dict)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
@@ -109,7 +109,7 @@ def risk_finder_task(self, document_id: str) -> str | None:
         db.close()
 
 
-def _profile_to_dict(profile) -> dict:
+def profile_to_dict(profile) -> dict:
     """Every company_profile field the tender might ask about — docs/DECISIONS.md
     (#65 follow-up): the real PQ checklist (docs/C4i4_Tender_PQ_TQ_BID_NO_BID_
     Framework.xlsx, Section A rows 3-4) lists PAN and GST registration as real PQ
@@ -117,6 +117,10 @@ def _profile_to_dict(profile) -> dict:
     information provided" -> FAIL purely because the field was withheld from the
     model, not because the company actually lacks it. Widening this was a deliberate
     user request, not a default worth reverting to without asking.
+
+    No longer module-private — reused by routes_analysis.py's resubmit-rescoring
+    endpoint (docs/DECISIONS.md), which needs the exact same profile subset the
+    original go_no_go_task used.
 
     The one deliberate exception: `unconfirmed_org_turnover_inr` is NEVER sent. That
     field isn't merely out-of-scope like the others were — the source docx (see

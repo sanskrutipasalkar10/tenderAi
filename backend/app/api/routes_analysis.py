@@ -56,3 +56,39 @@ def review_go_no_go(
     db.commit()
     db.refresh(analysis)
     return analysis
+
+
+@router.post(
+    "/{document_id}/analysis/go_no_go/resubmit", response_model=DocumentAnalysisResponse
+)
+def resubmit_go_no_go(document_id: uuid.UUID, db: Session = Depends(get_db)):
+    """"Resubmit analysis" — re-asks the model for fresh factor_scores against the
+    document's current, human-reviewed criteria_matches (see
+    app.pipeline.reduce_pass.rescore_go_no_go), so score/decision actually move once a
+    bid team has finished reviewing insufficient_data/fail criteria via PATCH .../review
+    above. Unlike that endpoint, this DOES trigger a real LLM call — a real, synchronous
+    reduce-pass call, same as the existing review flow's ~5-8s latency profile
+    (docs/DECISIONS.md, tasks_reduce.py), not routed through Celery since it's a single
+    user-initiated action, not a fan-out/fan-in pipeline stage.
+
+    Local imports (not module-level) mirror app.workers.tasks_reduce.go_no_go_task's own
+    pattern — app.workers.tasks_reduce <-> app.workers.celery_app is a documented
+    circular import via tasks_pipeline (tests/unit/test_tasks_reduce_profile_dict.py),
+    and importing lazily here avoids the same fragility rather than risking hitting it
+    at FastAPI startup.
+    """
+    from app.models.company_profile import CompanyProfile
+    from app.models.document import Document
+    from app.pipeline.reduce_pass import rescore_go_no_go
+    from app.workers.tasks_reduce import profile_to_dict
+
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    profile = (
+        db.get(CompanyProfile, document.company_profile_id)
+        if document.company_profile_id
+        else None
+    )
+    return rescore_go_no_go(db, document, profile_to_dict(profile))

@@ -17,13 +17,49 @@ from app.models.schemas import (
     MapPassAmountFact,
     MapPassCriterionFact,
     MapPassDateFact,
+    MapPassDocumentRequirement,
     MapPassResult,
     MapPassRiskCandidate,
+    PQChecklistItem,
+    PQChecklistLLMResult,
     RiskFinderLLMResult,
     RiskFinderLLMRisk,
     SynopsisLLMResult,
+    TQScoringLLMResult,
 )
 from app.pipeline import reduce_pass
+
+
+def _fake_empty_pq_checklist() -> PQChecklistLLMResult:
+    return PQChecklistLLMResult(
+        items=[
+            PQChecklistItem(category=c, status="not_applicable")
+            for c in reduce_pass.PQ_CHECKLIST_CATEGORIES
+        ]
+    )
+
+
+def _fake_tq_scoring() -> TQScoringLLMResult:
+    return TQScoringLLMResult(
+        factor_scores=dict.fromkeys(reduce_pass.TQ_FACTOR_WEIGHTS, 50),
+        commercial_competitiveness="MEDIUM",
+        bid_preparation_effort="MEDIUM",
+        major_qualification_gap="None identified",
+        major_technical_gap="None identified",
+    )
+
+
+def _dispatch_by_schema(*results_by_schema: tuple[type, object]):
+    """complete_structured mock that routes to the right fake result by requested
+    schema — needed since run_go_no_go now makes three calls (GoNoGoLLMResult, then
+    PQChecklistLLMResult, then TQScoringLLMResult) in the same run.
+    """
+    by_schema = dict(results_by_schema)
+
+    def _fake(task, prompt, schema):
+        return by_schema[schema], "test-model"
+
+    return _fake
 
 QUALIFIED_PROFILE = {
     "company_name": "Test Infra Builders",
@@ -135,9 +171,12 @@ def _document() -> Document:
 def test_go_no_go_incomplete_profile_skips_llm_and_returns_conditional_go(monkeypatch) -> None:
     document = _document()
     db = FakeReduceSession(
-        chunk_extractions=[_extraction(MapPassResult(criteria=[
-            MapPassCriterionFact(description="Min turnover 50 Cr", page_ref=1)
-        ]).model_dump())]
+        chunk_extractions=[_extraction(MapPassResult(
+            criteria=[MapPassCriterionFact(description="Min turnover 50 Cr", page_ref=1)],
+            documents_required=[
+                MapPassDocumentRequirement(description="PAN card copy", page_ref=3)
+            ],
+        ).model_dump())]
     )
 
     def _should_not_be_called(*_args, **_kwargs):
@@ -150,6 +189,13 @@ def test_go_no_go_incomplete_profile_skips_llm_and_returns_conditional_go(monkey
     assert analysis.result["decision"] == "Conditional-Go (Partner Required)"
     assert set(analysis.result["gaps"]) == {"certifications", "sectors"}
     assert analysis.model_used is None
+    assert analysis.result["pq_checklist"] is None
+    assert analysis.result["tq_score"] is None
+    assert analysis.result["commercial_competitiveness"] is None
+    # documents_required needs no LLM call/company profile — populated even here.
+    assert analysis.result["documents_required"] == [
+        {"description": "PAN card copy", "page_ref": 3}
+    ]
 
 
 def test_go_no_go_no_criteria_found_skips_llm(monkeypatch) -> None:
@@ -166,6 +212,8 @@ def test_go_no_go_no_criteria_found_skips_llm(monkeypatch) -> None:
 
     assert analysis.result["decision"] == "Conditional-Go (Partner Required)"
     assert "No eligibility criteria found" in analysis.result["gaps"][0]
+    assert analysis.result["pq_checklist"] is None
+    assert analysis.result["tq_score"] is None
 
 
 def test_go_no_go_all_pass_yields_go_decision(monkeypatch) -> None:
@@ -194,7 +242,13 @@ def test_go_no_go_all_pass_yields_go_decision(monkeypatch) -> None:
         factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 100),
     )
     monkeypatch.setattr(
-        reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
+        reduce_pass,
+        "complete_structured",
+        _dispatch_by_schema(
+            (GoNoGoLLMResult, fake_llm_result),
+            (PQChecklistLLMResult, _fake_empty_pq_checklist()),
+            (TQScoringLLMResult, _fake_tq_scoring()),
+        ),
     )
 
     analysis = reduce_pass.run_go_no_go(db, document, QUALIFIED_PROFILE)
@@ -230,7 +284,13 @@ def test_go_no_go_any_fail_yields_no_go_decision(monkeypatch) -> None:
         factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 0),
     )
     monkeypatch.setattr(
-        reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
+        reduce_pass,
+        "complete_structured",
+        _dispatch_by_schema(
+            (GoNoGoLLMResult, fake_llm_result),
+            (PQChecklistLLMResult, _fake_empty_pq_checklist()),
+            (TQScoringLLMResult, _fake_tq_scoring()),
+        ),
     )
 
     analysis = reduce_pass.run_go_no_go(db, document, QUALIFIED_PROFILE)
@@ -289,7 +349,10 @@ def test_risk_finder_assigns_severity_by_rubric_not_llm(monkeypatch) -> None:
     risk = analysis.result["risks"][0]
     assert risk["severity"] == "HIGH"  # from SEVERITY_BY_CATEGORY, not the mocked LLM response
     assert risk["verified"] is True
-    assert analysis.result["risk_score"] == 30  # _SEVERITY_WEIGHT["HIGH"]
+    # A single risk: compute_risk_score's compounding formula reduces to the plain
+    # weight itself (1 - (1 - 0.30) = 0.30) — only diverges from a flat weight once
+    # more than one risk is present, see test_compute_risk_score.py.
+    assert analysis.result["risk_score"] == 30
 
 
 def test_risk_finder_unrecognized_category_gets_default_severity(monkeypatch) -> None:

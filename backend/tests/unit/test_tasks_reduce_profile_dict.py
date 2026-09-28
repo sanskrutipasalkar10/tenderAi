@@ -1,4 +1,4 @@
-"""_profile_to_dict — what subset of company_profiles reaches the go_no_go prompt.
+"""profile_to_dict — what subset of company_profiles reaches the go_no_go prompt.
 Widened to every field except unconfirmed_org_turnover_inr (user request, following
 up on a real gap: PAN/GST are actual PQ criteria per docs/C4i4_Tender_PQ_TQ_BID_NO_BID_
 Framework.xlsx Section A, so withholding them caused false FAILs). The one exclusion
@@ -15,7 +15,7 @@ from datetime import date
 # not something to silently work around by reordering unrelated test files.
 import app.workers.celery_app  # noqa: F401
 from app.models.company_profile import CompanyProfile
-from app.workers.tasks_reduce import _profile_to_dict
+from app.workers.tasks_reduce import profile_to_dict
 
 
 def _full_profile() -> CompanyProfile:
@@ -50,17 +50,17 @@ def _full_profile() -> CompanyProfile:
 
 
 def test_none_profile_returns_empty_dict() -> None:
-    assert _profile_to_dict(None) == {}
+    assert profile_to_dict(None) == {}
 
 
 def test_unconfirmed_org_turnover_is_never_sent() -> None:
-    result = _profile_to_dict(_full_profile())
+    result = profile_to_dict(_full_profile())
     assert "unconfirmed_org_turnover_inr" not in result
 
 
 def test_every_other_field_is_sent() -> None:
     profile = _full_profile()
-    result = _profile_to_dict(profile)
+    result = profile_to_dict(profile)
 
     expected_fields = {
         "company_name", "annual_turnover", "turnover_source", "certifications",
@@ -81,5 +81,5 @@ def test_every_other_field_is_sent() -> None:
 def test_none_date_of_incorporation_stays_none() -> None:
     profile = _full_profile()
     profile.date_of_incorporation = None
-    result = _profile_to_dict(profile)
+    result = profile_to_dict(profile)
     assert result["date_of_incorporation"] is None

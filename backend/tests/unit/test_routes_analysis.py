@@ -136,3 +136,68 @@ def test_review_requires_auth() -> None:
         assert response.status_code == 401
     finally:
         app.dependency_overrides[get_current_user] = lambda: "test-user"
+
+
+def test_resubmit_404s_when_document_not_found(_overrides) -> None:
+    _overrides.get.return_value = None
+
+    response = client.post(f"/documents/{uuid.uuid4()}/analysis/go_no_go/resubmit")
+
+    assert response.status_code == 404
+
+
+def test_resubmit_calls_rescore_go_no_go_and_returns_the_updated_analysis(
+    _overrides, monkeypatch
+) -> None:
+    from app.models.document import Document
+    from app.pipeline import reduce_pass
+
+    document_id = uuid.uuid4()
+    document = Document(id=document_id, filename="t.pdf", status="ready", company_profile_id=None)
+    _overrides.get.return_value = document
+
+    updated_analysis = _analysis(
+        {"score": 82, "decision": "Go", "criteria_matches": [], "gaps": [],
+         "next_steps": [], "factor_scores": dict.fromkeys(
+             reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 82)},
+        document_id,
+    )
+    monkeypatch.setattr(
+        reduce_pass, "rescore_go_no_go", lambda db, doc, profile: updated_analysis
+    )
+
+    response = client.post(f"/documents/{document_id}/analysis/go_no_go/resubmit")
+
+    assert response.status_code == 200
+    assert response.json()["result"]["score"] == 82
+    assert response.json()["result"]["decision"] == "Go"
+
+
+def test_resubmit_422s_when_analysis_has_no_factor_scores_to_rescore(
+    _overrides, monkeypatch
+) -> None:
+    from app.core.exceptions import DataQualityError
+    from app.models.document import Document
+    from app.pipeline import reduce_pass
+
+    document_id = uuid.uuid4()
+    document = Document(id=document_id, filename="t.pdf", status="ready", company_profile_id=None)
+    _overrides.get.return_value = document
+
+    def _raise(db, doc, profile):
+        raise DataQualityError("This document's go_no_go analysis has no factor_scores")
+
+    monkeypatch.setattr(reduce_pass, "rescore_go_no_go", _raise)
+
+    response = client.post(f"/documents/{document_id}/analysis/go_no_go/resubmit")
+
+    assert response.status_code == 422
+
+
+def test_resubmit_requires_auth() -> None:
+    app.dependency_overrides.pop(get_current_user, None)
+    try:
+        response = client.post(f"/documents/{uuid.uuid4()}/analysis/go_no_go/resubmit")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: "test-user"

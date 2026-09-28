@@ -20,6 +20,16 @@ Extract every instance of the following, if present in this chunk:
    terms, unlimited liability, etc.). For each: a `category` (short label like
    "Liquidated Damages"), a `clause_summary` (one sentence, your own words), and the
    `page_ref`.
+5. **documents_required** — any specific document, form, certificate copy, or
+   attachment the tender explicitly asks the bidder to physically submit as part of
+   the bid package (e.g. "PAN card copy", "signed and stamped Annexure A", "EMD
+   demand draft", "self-attested English translation of non-English documents",
+   "experience/completion certificates", "audited balance sheet"). This is a literal
+   packing-list item, not an eligibility judgment — it can legitimately overlap with
+   a fact you also reported under `criteria` (e.g. both a turnover threshold AND
+   "submit audited balance sheet" may appear for the same underlying requirement);
+   report both, that overlap is expected. For each: a `description` in your own
+   words (concise, one sentence) and the `page_ref`.
 
 Rules:
 - Every single fact MUST include the correct `page_ref` — this chunk spans multiple
@@ -36,7 +46,8 @@ Respond with ONLY a JSON object matching this exact shape, no other text:
   "dates": [{"label": "...", "value": "...", "page_ref": 0}],
   "amounts": [{"label": "...", "value": "...", "page_ref": 0}],
   "criteria": [{"description": "...", "page_ref": 0}],
-  "risk_candidates": [{"category": "...", "clause_summary": "...", "page_ref": 0}]
+  "risk_candidates": [{"category": "...", "clause_summary": "...", "page_ref": 0}],
+  "documents_required": [{"description": "...", "page_ref": 0}]
 }
 ```
 
