@@ -54,8 +54,9 @@ Out-of-domain behavior: refuse/flag with a visible reason, never silently procee
 ## 6. Outputs
 Format: JSON (three `document_analysis.result` shapes, one row per `(document_id, module)`)
 
-Schema (`go_no_go`) — as of docs/DECISIONS.md #64/#68/#69 (hard-gate pre-check +
-weighted 8-factor score, criterion-type tagging, and targeted human review):
+Schema (`go_no_go`) — as of docs/DECISIONS.md #64/#68/#69/#71/#73 (hard-gate pre-check +
+weighted 8-factor score, criterion-type tagging, targeted human review, the fixed
+28-item PQ checklist, and the 12-item TQ score + Bid/No-Bid judgment fields):
 ```jsonc
 {
   "score": 78,
@@ -75,7 +76,36 @@ weighted 8-factor score, criterion-type tagging, and targeted human review):
     "PQ Eligibility": 90, "Similar Experience": 70, "Technical Capability": 80,
     "Government/PSU Experience": 100, "Key Manpower": 60, "Financial Capability": 40,
     "Strategic Relevance": 50, "Partner/OEM Availability": 20
-  }
+  },
+  "pq_checklist": [
+    {
+      "category": "PAN",  // one of the 28 fixed app.pipeline.reduce_pass.PQ_CHECKLIST_CATEGORIES
+      "tender_requirement": "Valid PAN required", "company_value": "AAZCS2482C",
+      "status": "pass",  // "pass" | "fail" | "insufficient_data" | "not_applicable"
+      "page_ref": 5
+    }
+    // ... exactly 28 entries, one per fixed category, always present even if the
+    // tender never mentions a given category ("not_applicable")
+  ],
+  "documents_required": [
+    // every document/form/attachment the tender asks the bidder to physically
+    // submit — extracted directly by map_pass (docs/DECISIONS.md #72), no LLM call
+    // or company profile needed here, so always populated (including on the
+    // Conditional-Go short-circuit paths above)
+    {"description": "PAN card copy", "page_ref": 5}
+  ],
+  "tq_score": 62,  // compute_tq_score(tq_factor_scores) against TQ_FACTOR_WEIGHTS (12 factors, sums to 100) — null if the call below failed or was short-circuited
+  "tq_factor_scores": {
+    "Similar Project Experience": 60, "Government/PSU Project Experience": 70,
+    "Relevant Industry 4.0/AI/ML Experience": 85, "Technical Solution/Methodology": 55,
+    "Understanding of Requirements": 60, "Proposed Architecture/Solution Design": 50,
+    "Key Personnel": 65, "Technology Capability": 70, "Implementation Methodology": 55,
+    "Project Management Approach": 60, "Support/O&M Approach": 50, "Innovation/Value Addition": 40
+  },
+  "commercial_competitiveness": "MEDIUM",  // "LOW" | "MEDIUM" | "HIGH" — Section C
+  "bid_preparation_effort": "HIGH",  // "LOW" | "MEDIUM" | "HIGH" — Section C
+  "major_qualification_gap": "No completed catering/housekeeping project meets the Rs.56 lakh threshold.",
+  "major_technical_gap": "No demonstrated methodology for the tendered service area."
 }
 ```
 `score` is `compute_weighted_score(factor_scores)` against the fixed weights in
@@ -87,6 +117,23 @@ free text. `"insufficient_data"` (no relevant `company_value` found) behaves lik
 `"fail"` for gate-triggering until a `human_override` resolves it via the review
 endpoint — reviewing changes `decision`/`gaps`, but never retroactively adjusts
 `factor_scores` (a stated scope boundary, docs/DECISIONS.md #69).
+
+`pq_checklist` is the company's standard 28-item pre-qualification checklist (Section A
+of the real framework spreadsheet), produced by a **separate** LLM call from the main
+criteria-matching one (docs/DECISIONS.md #71) — informational only, never feeds the
+score/decision/gates above, matching the real spreadsheet's own design (a paper
+checklist next to the score, not part of it). `null` if that separate call failed —
+degrades gracefully, never blocks the main decision.
+
+`tq_score`/`tq_factor_scores`/`commercial_competitiveness`/`bid_preparation_effort`/
+`major_qualification_gap`/`major_technical_gap` are Section B (the 12-item Technical
+Qualification score) and Section C's two genuinely-judgment-based fields, produced by
+a third **separate** LLM call (docs/DECISIONS.md #73) — also informational only, never
+feeds `score`/`decision`/`gates`. All `null` together if that call failed or was
+short-circuited (same graceful-degradation contract as `pq_checklist`). Section C's
+other fields (PQ Gate, Expected TQ Score, Strategic Relevance, Partner Required, Final
+Recommendation) are **not** stored here at all — the frontend derives them from fields
+already above (`gaps`, `tq_score`, `factor_scores`, `decision`).
 
 Schema (`risk_finder`):
 ```jsonc
@@ -190,9 +237,13 @@ ReAct-style loop), which removes the other common reason projects reach for an a
 | Map-pass chunk facts are all correctly page-tagged | Reduce pass cites the wrong page, breaking the core verifiability promise | Phase 4 gate: page-tag correctness on golden `chunk_extractions`; Phase 5 re-verifies `page_ref` against raw `pages` before display |
 | SHA-256 content-hash matching catches true boilerplate duplicates without false positives | Missed cache hits (wasted cost) or a near-duplicate-but-different page served cached content | Exact-hash-match only (no fuzzy match) — false positives structurally prevented; near-duplicate-but-not-identical text won't cache-hit (documented limitation); Phase 3 fixture test |
 | Free-tier provider rate limits are sufficient for pilot volume | Pipeline stalls/fails under real load | Retry/backoff on every provider call (CLAUDE.md rule 10); Phase 7 per-document cost/latency tracking |
+| A GeM tender's real eligibility/scope content, hyperlinked rather than embedded in the uploaded cover PDF, is fetchable from wherever this pipeline runs | Criteria matching runs against an (almost) empty document — a wrong or misleadingly-optimistic Go/No-Go, not just a smaller one (docs/DECISIONS.md #75) | `app.guardrails.link_checks.is_fetchable_url` host allowlist + `app.pipeline.fetch_links` bounded-retry fetch; an unreachable link is logged and skipped, never silently treated as "nothing more to find" |
 
 ## 12. Explicitly out of scope (v1)
-- Auto-fetching tenders from GeM/CPPP/state portals (manual upload only)
+- Auto-fetching tenders from GeM/CPPP/state portals (manual upload only — still true;
+  distinct from `app.pipeline.fetch_links` docs/DECISIONS.md #75, which only follows
+  hyperlinks found *inside* an already manually-uploaded tender PDF, never discovers or
+  downloads a new tender on its own)
 - Multi-tenant / multi-organization support
 - BOQ cost estimation or auto-filling tender forms
 - Chat/Q&A interface over a tender (no retrieval, no `chunk_embeddings` table — `pgvector`

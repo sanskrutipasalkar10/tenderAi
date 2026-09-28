@@ -78,6 +78,15 @@ tool selection.
   migration) but no table has a vector column and no query uses it. Do not build retrieval.
 - Data: PostgreSQL + SQLAlchemy · Cache/broker: Redis
 - Object storage: MinIO (dev) → S3/R2 (prod), via `backend/app/storage/objects.py`
+- Hyperlinked-document fetching: GeM tender cover sheets link out to the real tender
+  content ("...AS PER ANNEXURE A ENCLOSED" is a URI, not an attachment — confirmed
+  against 3 real GeM-Bidding-*.pdf files, docs/DECISIONS.md #75). `backend/app/
+  pipeline/fetch_links.py` extracts/classifies/fetches these, gated by `backend/app/
+  guardrails/link_checks.py`'s host-allowlist (untrusted-PDF-derived URLs are the same
+  class of risk as prompt-injection, hard rule 6, generalized to network-fetch-
+  injection — never fetch one without going through this gate first). Two new
+  dependencies for this: `beautifulsoup4` (a linked SLA page can resolve to a full HTML
+  portal page, not a PDF) and `python-docx` (some linked docs are `.docx`).
 - Tracing: Langfuse, self-hosted alongside the docker-compose stack (docs/DECISIONS.md
   #52) — never Langfuse Cloud or LangSmith Cloud, since a trace's input/output is real
   tender text. Wired via `app/core/tracing.py`, one hook in `app.llm.client.
@@ -92,8 +101,13 @@ tool selection.
    `backend/app/llm/client.py`. `app/pipeline/map_pass.py`, `reduce_pass.py`, and
    `extract_vision.py` call `app.llm.router.route(...)` then `app.llm.client.complete(...)`.
 2. NEVER put a prompt inline in Python. Prompts are versioned files in
-   `backend/app/prompts/`, loaded via `registry.py`. There are exactly five, all built:
-   one vision prompt, one map-pass prompt, three reduce-pass prompts (`go_no_go`,
+   `backend/app/prompts/`, loaded via `registry.py`. There are eight, all built: one
+   vision prompt, one map-pass prompt, six reduce-pass prompts (`go_no_go`,
+   `pq_checklist` — the fixed 28-item checklist, a separate call from `go_no_go`,
+   docs/DECISIONS.md #71 — `tq_scoring` — the fixed 12-factor TQ score + Section C's
+   two judgment fields, another separate call from `go_no_go`, docs/DECISIONS.md #73 —
+   `go_no_go_rescore` — factor_scores ONLY, re-asked against a FIXED, already-reviewed
+   criteria list for the "Resubmit analysis" action, docs/DECISIONS.md #74 —
    `synopsis`, `risk_finder`). When a prompt needs runtime content
    substituted in, use `.replace("{content}", value)`, NOT `str.format()` — a prompt
    with a JSON example is full of literal `{braces}` that `.format()` misinterprets
