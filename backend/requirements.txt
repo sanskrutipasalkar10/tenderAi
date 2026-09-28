@@ -32,6 +32,11 @@ pymupdf==1.25.1
 pdfplumber==0.11.10
 camelot-py[cv]==1.0.0
 
+# Hyperlinked-document extraction (docs/DECISIONS.md) — some GeM-tender links resolve
+# to a portal HTML page or a .docx, not a PDF; app/pipeline/fetch_links.py
+beautifulsoup4==4.12.3
+python-docx==1.1.2
+
 # LLM access (Phase 3-5)
 litellm==1.56.5
 requests==2.34.2  # app/llm/client.py's direct Ollama /api/chat call (docs/DECISIONS.md #28)

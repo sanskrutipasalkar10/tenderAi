@@ -40,6 +40,7 @@ def get_page_content(
         raw_text=page.raw_text,
         confidence_score=page.confidence_score,
         has_image=page.image_s3_key is not None,
+        source_url=page.source_url,
     )
 
 

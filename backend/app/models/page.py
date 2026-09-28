@@ -47,4 +47,9 @@ class Page(Base):
     content_hash: Mapped[str | None] = mapped_column(String(64))
     image_s3_key: Mapped[str | None] = mapped_column(Text)
     confidence_score: Mapped[float | None] = mapped_column(Numeric)
+    # NULL for a page from the uploaded PDF itself; set to the origin URL for a page
+    # fetched from a hyperlink found inside the PDF (docs/DECISIONS.md — GeM cover
+    # sheets link out to the real tender content). Additive, nullable — every existing
+    # page stays NULL/unchanged.
+    source_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

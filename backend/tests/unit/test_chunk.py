@@ -115,8 +115,8 @@ def test_ranges_always_fully_cover_document_no_gaps(total_pages: int) -> None:
 
 
 def test_build_chunks_creates_rows_with_token_counts() -> None:
-    # 4 pages fits inside one chunk at the current default CHUNK_SIZE_PAGES (5, see
-    # docs/DECISIONS.md #35) — this test is about token-count correctness, not chunk
+    # 4 pages fits inside one chunk at the current default CHUNK_SIZE_PAGES (see
+    # docs/DECISIONS.md #35/#77) — this test is about token-count correctness, not chunk
     # count, so it deliberately stays under whatever the current default is rather
     # than hardcoding a page count that assumes a specific default.
     from app.pipeline.chunk import CHUNK_SIZE_PAGES
@@ -151,6 +151,77 @@ def test_build_chunks_skips_pages_with_no_text_for_token_counting() -> None:
 
     assert len(chunks) == 1
     assert chunks[0].token_count > 0  # counted the 2 pages with text, skipped the None
+
+
+def _make_linked_page(document_id, page_number, source_url, raw_text) -> Page:
+    return Page(
+        id=uuid.uuid4(),
+        document_id=document_id,
+        page_number=page_number,
+        classification="native_text",
+        extraction_method="native",
+        raw_text=raw_text,
+        content_hash="hash",
+        confidence_score=1.0,
+        source_url=source_url,
+    )
+
+
+def test_build_chunks_never_straddles_a_source_boundary() -> None:
+    """A chunk window must never mix the cover PDF's own pages with a hyperlinked
+    document's pages (docs/DECISIONS.md) — per-source-span planning (_source_spans)
+    guarantees this regardless of CHUNK_SIZE_PAGES's exact value, so this derives its
+    page counts from the real current default rather than hardcoding one (the
+    property under test — no chunk straddles the source boundary — doesn't depend on
+    the specific chunk size).
+    """
+    from app.pipeline.chunk import CHUNK_SIZE_PAGES
+
+    document_id = uuid.uuid4()
+    cover_page_count = 3
+    linked_page_count = CHUNK_SIZE_PAGES + 3  # guaranteed to span >1 chunk on its own
+    total_pages = cover_page_count + linked_page_count
+    document = Document(
+        id=document_id, filename="x.pdf", status="extracted", total_pages=total_pages
+    )
+    cover_pages = [
+        _make_linked_page(document_id, i, None, f"cover {i}") for i in range(cover_page_count)
+    ]
+    linked_pages = [
+        _make_linked_page(
+            document_id, cover_page_count + i, "https://gem.gov.in/annexure-a", f"linked {i}"
+        )
+        for i in range(linked_page_count)
+    ]
+    db = FakeChunkSession(cover_pages + linked_pages)
+
+    chunks = build_chunks(db, document)
+
+    boundary = cover_page_count
+    for chunk in chunks:
+        # Every chunk's page range must fall entirely within one source: either
+        # end_page < boundary (all cover pages) or start_page >= boundary (all
+        # linked-doc pages) — never straddling the real source transition.
+        assert chunk.end_page < boundary or chunk.start_page >= boundary
+
+
+def test_source_spans_single_span_when_no_source_url_present() -> None:
+    from app.pipeline.chunk import _source_spans
+
+    pages = [_make_page(uuid.uuid4(), i, "text") for i in range(5)]
+    assert _source_spans(pages) == [(0, 4)]
+
+
+def test_source_spans_splits_on_source_url_change() -> None:
+    from app.pipeline.chunk import _source_spans
+
+    document_id = uuid.uuid4()
+    pages = (
+        [_make_linked_page(document_id, i, None, "cover") for i in range(3)]
+        + [_make_linked_page(document_id, 3 + i, "https://gem.gov.in/a", "a") for i in range(2)]
+        + [_make_linked_page(document_id, 5 + i, "https://gem.gov.in/b", "b") for i in range(4)]
+    )
+    assert _source_spans(pages) == [(0, 2), (3, 4), (5, 8)]
 
 
 def test_chunk_page_text_returns_page_number_text_pairs_in_order() -> None:
