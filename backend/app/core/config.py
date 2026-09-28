@@ -16,8 +16,11 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket: str = "tenders"
 
-    # AI providers — Ollama Cloud via a local daemon, no separate API key
-    # (docs/DECISIONS.md #28)
+    # AI providers — Gemini API is primary (docs/DECISIONS.md #76), Ollama (cloud or
+    # local via a local daemon) is the fallback on Gemini failure, and local Ollama
+    # stays the vision primary when use_local_vision is set (fully offline/air-gapped
+    # work — see app.llm.router).
+    gemini_api_key: str = ""
     use_local_vision: bool = False
     ollama_base_url: str = "http://localhost:11434"
 
@@ -45,6 +48,24 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_pages: int = 2000
     max_upload_size_mb: int = 500
+
+    # Hyperlinked-document fetching (docs/DECISIONS.md — GeM cover sheets link out to
+    # the real tender content instead of embedding it). Comma-separated host suffixes,
+    # same style as cors_allowed_origins_list below — a URL extracted from an untrusted
+    # uploaded PDF is only ever fetched if its host matches one of these (hard rule 6,
+    # generalized from prompt-injection to network-fetch-injection; see
+    # app.guardrails.link_checks). max_per_document caps how many links one document
+    # can cause this pipeline to fetch, regardless of how many a malicious/malformed
+    # PDF embeds.
+    linked_doc_allowed_host_suffixes: str = "gem.gov.in"
+    linked_doc_max_per_document: int = 20
+    linked_doc_fetch_timeout_seconds: int = 30
+
+    @property
+    def linked_doc_allowed_host_suffixes_list(self) -> list[str]:
+        return [
+            s.strip() for s in self.linked_doc_allowed_host_suffixes.split(",") if s.strip()
+        ]
 
     # CORS — the Next.js frontend (frontend/, Phase 8) runs on a different origin
     # (:3000) than this API (:8000); without an explicit allowlist here, every

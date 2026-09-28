@@ -3,18 +3,17 @@ call one directly (CLAUDE.md hard rule 1). Every retry/backoff/timeout policy fo
 provider call lives here once (hard rule 10), not duplicated across map_pass.py,
 reduce_pass.py, and extract_vision.py.
 
-Every model this project currently routes to is Ollama (cloud or local — see
-app.llm.router), called via Ollama's native /api/chat, NOT litellm. This wasn't the
-original design (see docs/DECISIONS.md #29 for the first litellm/Ollama bug found —
-image handling); it's now the case for text calls too after a second, more serious bug
-(docs/DECISIONS.md #34): litellm's `timeout` parameter is not reliably enforced against
-the ollama_chat provider for large prompts — a real chunk from a real tender document
-hung well past its configured timeout with no error, a genuine CLAUDE.md hard-rule-10
-violation (every external call must have an enforced timeout). `requests`' own timeout
-is reliably enforced, so that's what every call goes through now. litellm stays a
-dependency (imported, available) in case a genuinely non-Ollama provider is ever added
-— complete() still branches on provider prefix, it just happens that 100% of traffic
-takes the Ollama branch today.
+Two providers now (docs/DECISIONS.md #76): Gemini (primary, `gemini/` prefix) and
+Ollama (fallback — cloud tag or local, `ollama/`/`ollama_chat/` prefix, see
+app.llm.router). Both go through native REST via `requests`, NOT litellm/an SDK —
+the Ollama path already had two confirmed litellm bugs (docs/DECISIONS.md #29 image
+handling, #34 `timeout` not reliably enforced for large prompts — a real hard-rule-10
+violation), so the same "call the provider's own REST API directly, hand-roll
+timeout/retry" pattern is used for Gemini too, for consistency and because it avoids
+introducing a new SDK dependency and its own unverified quirks. litellm stays a
+dependency (imported, available) in case a genuinely different provider is ever added
+— complete() still branches on provider prefix, it just happens that no current
+traffic takes the litellm branch.
 """
 
 import base64
@@ -34,6 +33,13 @@ logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT_SECONDS = 180
 DEFAULT_NUM_RETRIES = 1
+# Vertex AI "Express Mode" (docs/DECISIONS.md #76) — this project's Gemini API key is
+# an Express-mode key (the "AQ." prefix, confirmed by direct testing: it 403s against
+# the AI Studio host generativelanguage.googleapis.com with API_KEY_SERVICE_BLOCKED,
+# and only authenticates against aiplatform.googleapis.com). A plain AI-Studio key
+# (the more commonly documented "AIzaSy..." format) would need the AI Studio host
+# instead — this project's key is the Express-mode kind, so that's what's wired here.
+GEMINI_API_BASE = "https://aiplatform.googleapis.com/v1/publishers/google/models"
 
 
 def complete(
@@ -55,6 +61,17 @@ def complete(
     Raises ProviderError (never a raw requests/provider exception) on failure, after
     bounded retry-with-backoff is exhausted.
     """
+    if model.startswith("gemini/"):
+        return _complete_gemini_native(
+            model,
+            prompt,
+            image_bytes=image_bytes,
+            response_format=response_format,
+            temperature=temperature,
+            timeout=timeout,
+            num_retries=num_retries,
+        )
+
     if model.startswith("ollama/") or model.startswith("ollama_chat/"):
         return _complete_ollama_native(
             model,
@@ -67,8 +84,8 @@ def complete(
         )
 
     raise ProviderError(
-        f"No non-Ollama provider is configured — got model={model!r}. "
-        "Add a branch here (and its own retry/timeout handling) before routing to it."
+        f"No provider configured for model={model!r}. Add a branch here (and its own "
+        "retry/timeout handling) before routing to it."
     )
 
 
@@ -193,6 +210,76 @@ def _complete_ollama_native(
                 backoff = (2**attempt) + random.uniform(0, 1)
                 logger.warning(
                     "llm.ollama_retry",
+                    model=model,
+                    attempt=attempt + 1,
+                    backoff_seconds=round(backoff, 2),
+                    error=str(exc),
+                )
+                time.sleep(backoff)
+
+    logger.error("llm.call_failed_after_retries", model=model, error=str(last_error))
+    raise ProviderError(f"{model} unavailable after {num_retries} retries: {last_error}")
+
+
+def _complete_gemini_native(
+    model: str,
+    prompt: str,
+    *,
+    image_bytes: bytes | None,
+    response_format: dict | None,
+    temperature: float,
+    timeout: int,
+    num_retries: int,
+) -> str:
+    """Calls the Gemini API's native generateContent endpoint directly (docs/
+    DECISIONS.md #76) — same reasoning as _complete_ollama_native: hand-rolled
+    timeout/retry via `requests`, not an SDK, for the same "verified enforcement,
+    no library-layer surprises" property hard rule 10 requires.
+    """
+    gemini_model = model.split("/", 1)[1]  # strip "gemini/" prefix
+
+    parts: list[dict[str, Any]] = []
+    if image_bytes is not None:
+        encoded_image = base64.b64encode(image_bytes).decode("ascii")
+        parts.append({"inline_data": {"mime_type": "image/png", "data": encoded_image}})
+    parts.append({"text": prompt})
+
+    generation_config: dict[str, Any] = {"temperature": temperature}
+    if response_format is not None and response_format.get("type") == "json_object":
+        generation_config["responseMimeType"] = "application/json"
+
+    payload: dict[str, Any] = {
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": generation_config,
+    }
+    headers = {"x-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"}
+    url = f"{GEMINI_API_BASE}/{gemini_model}:generateContent"
+
+    last_error: Exception | None = None
+    for attempt in range(num_retries + 1):
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+            if response.status_code == 429 or response.status_code >= 500:
+                raise requests.HTTPError(f"{response.status_code}: {response.text[:200]}")
+            response.raise_for_status()
+            body = response.json()
+            candidates = body.get("candidates") or []
+            if not candidates:
+                # A real, non-transient case: the prompt or response tripped Gemini's
+                # own safety filters (promptFeedback.blockReason) — never in this
+                # project's control to retry away, so this raises immediately rather
+                # than burning the retry budget on a KeyError/IndexError.
+                block_reason = body.get("promptFeedback", {}).get("blockReason")
+                raise ProviderError(
+                    f"{model} returned no candidates (blockReason={block_reason!r})"
+                )
+            return candidates[0]["content"]["parts"][0]["text"]
+        except (requests.RequestException, KeyError) as exc:
+            last_error = exc
+            if attempt < num_retries:
+                backoff = (2**attempt) + random.uniform(0, 1)
+                logger.warning(
+                    "llm.gemini_retry",
                     model=model,
                     attempt=attempt + 1,
                     backoff_seconds=round(backoff, 2),

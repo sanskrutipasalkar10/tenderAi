@@ -37,6 +37,24 @@ def test_successful_extraction(mock_complete_for_task) -> None:
 
 
 @patch("app.pipeline.extract_vision.complete_for_task")
+def test_gemini_primary_is_recorded_as_vision_cloud(mock_complete_for_task) -> None:
+    """Gemini model tags (docs/DECISIONS.md #76) carry no ':cloud' suffix at all —
+    that was specifically the old Ollama Cloud tag convention — so this must be
+    recognized as cloud via the 'gemini/' prefix check, not the suffix check.
+    """
+    mock_complete_for_task.return_value = (
+        "Transcribed via Gemini.",
+        "gemini/gemini-3.8-flash",
+    )
+
+    doc = fitz.open(FIXTURES_DIR / "fixture_01_nhai_road.pdf")
+    result = extract_page_via_vision(doc[5])
+    doc.close()
+
+    assert result.extraction_method == "vision_cloud"
+
+
+@patch("app.pipeline.extract_vision.complete_for_task")
 def test_local_fallback_is_recorded_as_vision_local(mock_complete_for_task) -> None:
     """When complete_for_task falls back to a local model, extraction_method must
     reflect what actually served the request, not what was attempted first.

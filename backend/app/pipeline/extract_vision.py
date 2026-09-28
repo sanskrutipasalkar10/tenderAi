@@ -36,10 +36,16 @@ def _content_hash(text: str) -> str:
 
 
 def _extraction_method_for(model: str) -> ExtractionMethod:
-    """Every Ollama Cloud model tag this project uses ends in ":cloud"; every local
-    fallback/primary tag doesn't (docs/DECISIONS.md #32) — a clean, correct signal,
-    unlike checking for the literal substring "local" (no model string contains it).
+    """Gemini (docs/DECISIONS.md #76) is always cloud — its model tags carry no
+    ":cloud" suffix at all (that was specifically the Ollama Cloud tag convention,
+    docs/DECISIONS.md #32), so `gemini/` is checked directly. The only genuinely local
+    model in the current routing is the Ollama vision fallback
+    (`ollama_chat/qwen2.5vl:7b`, app.llm.router.OLLAMA_LOCAL_VISION_MODEL) — anything
+    else reaching here is cloud, whether Gemini or a (currently unused) Ollama Cloud
+    ":cloud"-tagged model.
     """
+    if model.startswith("gemini/"):
+        return "vision_cloud"
     return "vision_cloud" if model.endswith(":cloud") else "vision_local"
 
 
