@@ -1,16 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8fa;
-  --foreground: #111827;
+  --background: #fafaf6;
+  --foreground: #1c1d21;
 
-  /* Blueprint precision — see DESIGN.md's Direction contract */
-  --ink-950: #0b1220;
-  --ink-900: #111827;
-  --paper: #f7f8fa;
+  /* Indigo Precision — see DESIGN.md's Direction contract, Revision 3. Token NAMES
+     are unchanged from Revisions 1/2 (every bg-ink-950/text-accent/etc. call site
+     across the app repaints for free); only the values moved. */
+  --ink-950: #0f1115; /* primary dark ground — hero, login, TopBar-dark contexts */
+  --ink-900: #1c1d21; /* primary text color on light grounds; also used as a dark-panel
+                          tint at reduced opacity (bg-ink-900/40) over ink-950 */
+  --paper: #fafaf6; /* light-mode ground — warm off-white, not stark white */
 
-  --accent: #0891b2; /* cyan-700 — light-ground contexts (the app itself) */
-  --accent-bright: #2dd4e8; /* dark-ground contexts (the landing hero) */
+  --accent: #4f46e5; /* indigo-600 — light-ground contexts (the app itself) */
+  --accent-bright: #818cf8; /* indigo-400 — dark-ground contexts (the landing hero) */
 
   --severity-high: #dc2626;
   --severity-medium: #d97706;
@@ -19,6 +22,21 @@
   --status-go: #16a34a;
   --status-conditional: #d97706;
   --status-no-go: #dc2626;
+
+  /* Editorial design tokens — "/" and "/login" only (docs/DESIGN.md Revision 4).
+     Pulled from a separately-designed project per explicit user request and scoped
+     deliberately: the rest of the app keeps the Indigo Precision tokens above.
+     Extending this palette site-wide is a separate, not-yet-made decision. */
+  --navy: oklch(0.246 0.031 245);
+  --cobalt: oklch(0.485 0.184 260);
+  --cobalt-light: oklch(0.905 0.015 225);
+  --surface: oklch(1 0 0);
+  --success: oklch(0.42 0.12 155);
+  --success-surface: oklch(0.94 0.04 155);
+  --warning: oklch(0.48 0.12 70);
+  --warning-surface: oklch(0.95 0.045 80);
+  --danger: oklch(0.56 0.19 25);
+  --danger-surface: oklch(0.95 0.035 25);
 }
 
 @theme inline {
@@ -37,6 +55,18 @@
   --color-status-no-go: var(--status-no-go);
   --font-sans: var(--font-manrope);
   --font-mono: var(--font-plex-mono);
+
+  --color-navy: var(--navy);
+  --color-cobalt: var(--cobalt);
+  --color-cobalt-light: var(--cobalt-light);
+  --color-surface: var(--surface);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --font-display: var(--font-sora);
 }
 
 body {
@@ -58,4 +88,70 @@ body {
    hurt readability. */
 .heading-tight {
   letter-spacing: -0.02em;
+}
+
+/* Editorial landing/login animations (docs/DESIGN.md Revision 4) — plain CSS, not
+   framer-motion, so they get their own reduced-motion guard below independent of
+   MotionConfig in app/layout.tsx. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes document-scan {
+  0%,
+  12% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  85% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(215px);
+    opacity: 0;
+  }
+}
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@utility animate-rise-in {
+  animation: rise-in 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-rise-delay {
+  animation: rise-in 0.85s 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-rise-late {
+  animation: rise-in 0.85s 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-scan {
+  animation: document-scan 4.8s ease-in-out infinite;
+}
+@utility animate-soft-pulse {
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in,
+  .animate-rise-delay,
+  .animate-rise-late,
+  .animate-scan,
+  .animate-soft-pulse {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

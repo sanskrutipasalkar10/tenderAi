@@ -1,363 +1,243 @@
-"use client";
-
-import { motion } from "framer-motion";
+import { ArrowRight, ArrowUpRight, Check, FileCheck2, FileSearch, ScanText, ShieldAlert } from "lucide-react";
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import ScoreGauge from "@/components/ScoreGauge";
-import { CriterionStatusBadge, DecisionBadge } from "@/components/badges";
 
-const MODULES = [
-  {
-    name: "Go/No-Go Analyzer",
-    tag: "01",
-    copy: "Every eligibility criterion checked against your company's real data, with a single score and decision — not a guess dressed up as confidence.",
-    tags: ["Score & decision", "Criteria match", "Gap list"],
-  },
-  {
-    name: "AI Tender Synopsis",
-    tag: "02",
-    copy: "Title, authority, value, EMD, dates, scope, eligibility, and payment terms — the whole tender read for you in one structured page.",
-    tags: ["Key dates", "Financials", "Scope & eligibility"],
-  },
-  {
-    name: "AI Risk Finder",
-    tag: "03",
-    copy: "Every liquidated-damages clause, indemnity, and one-sided term ranked by severity, each one linked to the exact page it came from.",
-    tags: ["Severity ranking", "Source citations", "Export"],
-  },
-];
-
-const STEPS = [
-  {
-    n: "01",
-    title: "Upload",
-    copy: "Drop in a tender PDF — 50 to 1000+ pages, native text, scans, or tables, mixed.",
-  },
-  {
-    n: "02",
-    title: "AI analysis",
-    copy: "Every page is read, classified, and extracted; nothing is skipped or summarized blind.",
-  },
-  {
-    n: "03",
-    title: "Review",
-    copy: "Read the Go/No-Go score, synopsis, and risk list — click any fact to see its real source page.",
-  },
-  {
-    n: "04",
-    title: "Decide",
-    copy: "Your team makes the bid/no-bid call with the full picture, in minutes instead of days.",
-  },
-];
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
+export const metadata: Metadata = {
+  title: "Tender AI Platform | Bid intelligence for Indian government tenders",
+  description:
+    "Turn complex government tender PDFs into an evidence-backed Go/No-Go decision, a structured synopsis, and a page-cited risk review.",
 };
 
-const staggerContainer = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.1 } },
-};
-
-export default function LandingPage() {
+function Brand() {
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-100">
-      <SiteHeader />
-      <Hero />
-      <HowItWorks />
-      <Modules />
-      <Security />
-      <FinalCta />
-      <SiteFooter />
-    </div>
+    <Link href="/" className="inline-flex items-center gap-2.5 font-display text-base font-semibold text-navy" aria-label="Tender AI Platform home">
+      <span className="grid size-8 place-items-center rounded-sm bg-cobalt text-lg text-white">T</span>
+      <span>
+        Tender AI <span className="text-cobalt">Platform</span>
+      </span>
+    </Link>
   );
 }
 
-function SiteHeader() {
+function SampleAnalysis() {
   return (
-    <motion.header
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="border-b border-white/10"
-    >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2 font-semibold">
-          <span className="flex h-7 w-7 items-center justify-center rounded bg-white/10 text-xs font-bold text-accent-bright">
-            T
-          </span>
-          <span>Tender AI Platform</span>
-        </div>
-        <Link
-          href="/login"
-          className="rounded border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:border-accent-bright hover:text-accent-bright"
-        >
-          Sign in
-        </Link>
-      </div>
-    </motion.header>
-  );
-}
-
-function Hero() {
-  return (
-    <section className="overflow-hidden border-b border-white/10">
-      <div className="mx-auto grid max-w-6xl gap-16 px-6 py-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:py-28">
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.p
-            variants={fadeUp}
-            className="data-mono mb-6 text-xs uppercase tracking-[0.2em] text-accent-bright"
-          >
-            For Indian government tender bid teams
-          </motion.p>
-          <motion.h1
-            variants={fadeUp}
-            className="heading-tight text-5xl font-medium text-white sm:text-6xl"
-          >
-            Know whether to bid,
-            <br />
-            <span className="bg-gradient-to-r from-accent-bright to-cyan-200 bg-clip-text text-transparent">
-              in minutes — not days.
-            </span>
-          </motion.h1>
-          <motion.p variants={fadeUp} className="mt-6 max-w-xl text-lg text-slate-300">
-            Tender AI Platform reads the full tender PDF — every page, mixed text, scans, and
-            tables — and gives your team a Go/No-Go score, a structured synopsis, and a
-            page-cited risk list. Every claim traces back to the exact page it came from.
-          </motion.p>
-          <motion.div
-            variants={fadeUp}
-            className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4"
-          >
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
-              <Link
-                href="/login"
-                className="inline-block rounded bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-cyan-600"
-              >
-                Sign in to your workspace
-              </Link>
-            </motion.div>
-            <a
-              href="#how-it-works"
-              className="group inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 transition-colors hover:text-white"
-            >
-              See how it works
-              <span aria-hidden className="transition-transform group-hover:translate-x-1">
-                →
-              </span>
-            </a>
-          </motion.div>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, x: 24, scale: 0.97 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-        >
-          <HeroPreview />
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function HeroPreview() {
-  return (
-    <motion.div
-      className="relative"
-      animate={{ y: [0, -8, 0] }}
-      transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <div aria-hidden className="absolute -inset-6 -z-10 rounded-md bg-accent/10 blur-3xl" />
-      <div className="rounded-md border border-slate-200 bg-white p-6 shadow-2xl shadow-black/50">
-        <div className="mb-5 flex items-start justify-between gap-3">
+    <div className="relative isolate mx-auto w-full max-w-124 animate-rise-late lg:mt-3" aria-label="Illustrative tender analysis preview">
+      <div className="absolute -bottom-5 -left-5 -z-10 h-full w-full -rotate-2 rounded-lg border border-cobalt/10 bg-cobalt-light/60" />
+      <div className="relative rotate-1 overflow-hidden rounded-lg border border-slate-200 bg-surface p-6 shadow-2xl shadow-navy/10 transition-transform duration-500 hover:rotate-0 sm:p-8">
+        <div className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">
-              Sample analysis — illustrative
-            </p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">
-              NHAI — Administrative Block, Package 4
-            </p>
+            <p className="mb-2 text-[10px] font-bold uppercase text-slate-500">Sample analysis · illustrative</p>
+            <h2 className="font-display text-xl font-semibold">Conditional Go</h2>
+            <p className="mt-1 text-xs text-slate-500">Example tender assessment</p>
           </div>
-          <div className="flex-none">
-            <DecisionBadge decision="Conditional-Go (Partner Required)" />
+          <div className="grid size-14 shrink-0 place-items-center rounded-full border-4 border-cobalt-light border-t-cobalt font-display text-lg font-semibold text-cobalt">
+            78
           </div>
         </div>
-        <div className="flex flex-col items-center gap-6 border-t border-slate-100 pt-5 sm:flex-row">
-          <ScoreGauge score={78} label="Go/No-Go score" colorClass="stroke-status-conditional" />
-          <div className="w-full flex-1 space-y-2.5">
-            <PreviewCriterion label="Annual turnover" status="pass" />
-            <PreviewCriterion label="ISO 9001:2015 certification" status="fail" />
-            <PreviewCriterion label="Similar work experience" status="pass" />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200/60 bg-paper px-3 py-3">
+            <span className="text-sm font-medium">Annual turnover</span>
+            <span className="rounded-sm bg-success-surface px-2 py-1 text-[10px] font-bold text-success">PASS</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200/60 bg-paper px-3 py-3">
+            <span className="text-sm font-medium">Relevant project experience</span>
+            <span className="rounded-sm bg-success-surface px-2 py-1 text-[10px] font-bold text-success">PASS</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200/60 bg-paper px-3 py-3">
+            <span className="text-sm font-medium">Certification requirement</span>
+            <span className="rounded-sm bg-warning-surface px-2 py-1 text-[10px] font-bold text-warning">REVIEW</span>
+          </div>
+        </div>
+        <div className="mt-6 border-t border-slate-200 pt-5">
+          <p className="mb-3 text-[10px] font-bold uppercase text-slate-500">Source traceability</p>
+          <div className="flex items-center gap-2 text-xs font-semibold text-cobalt">
+            <FileSearch className="size-4" /> Page 42 · Eligibility criteria <ArrowUpRight className="ml-auto size-4" />
           </div>
         </div>
       </div>
-    </motion.div>
-  );
-}
-
-function PreviewCriterion({ label, status }: { label: string; status: "pass" | "fail" }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded border border-slate-100 bg-slate-50 px-3 py-2">
-      <span className="text-sm text-slate-600">{label}</span>
-      <CriterionStatusBadge status={status} />
     </div>
   );
 }
 
-function HowItWorks() {
+export default function Index() {
   return (
-    <section id="how-it-works" className="border-b border-white/10 bg-ink-900/40">
-      <div className="mx-auto max-w-6xl px-6 py-20">
-        <motion.h2
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.6 }}
-          transition={{ duration: 0.4 }}
-          className="mb-12 text-sm font-semibold tracking-[0.2em] text-slate-400 uppercase"
-        >
-          How it works
-        </motion.h2>
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
-          className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4"
-        >
-          {STEPS.map((step) => (
-            <motion.div key={step.n} variants={fadeUp} className="border-t border-white/15 pt-4">
-              <span className="data-mono text-2xl font-semibold text-accent-bright">
-                {step.n}
-              </span>
-              <h3 className="heading-tight mt-3 font-semibold text-white">{step.title}</h3>
-              <p className="mt-2 text-sm text-slate-400">{step.copy}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function Modules() {
-  return (
-    <section className="border-b border-white/10">
-      <div className="mx-auto max-w-6xl px-6 py-20">
-        <motion.h2
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.6 }}
-          transition={{ duration: 0.4 }}
-          className="mb-12 text-sm font-semibold tracking-[0.2em] text-slate-400 uppercase"
-        >
-          Three modules, one tender
-        </motion.h2>
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-          className="grid grid-cols-1 gap-6 md:grid-cols-3"
-        >
-          {MODULES.map((module) => (
-            <motion.div
-              key={module.name}
-              variants={fadeUp}
-              whileHover={{ y: -4, borderColor: "rgba(45, 212, 232, 0.4)" }}
-              transition={{ duration: 0.2 }}
-              className="rounded-md border border-white/10 bg-white/3 p-6"
-            >
-              <span className="data-mono text-xs text-accent-bright">{module.tag}</span>
-              <h3 className="heading-tight mt-3 text-lg font-semibold text-white">
-                {module.name}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">{module.copy}</p>
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {module.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function Security() {
-  return (
-    <section className="border-b border-white/10 bg-ink-900/40">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.4 }}
-        transition={{ duration: 0.5 }}
-        className="mx-auto max-w-3xl px-6 py-20 text-center"
-      >
-        <h2 className="mb-4 text-sm font-semibold tracking-[0.2em] text-slate-400 uppercase">
-          Data handling
-        </h2>
-        <p className="text-lg leading-relaxed text-slate-300">
-          Tender documents are uploaded to storage your team controls. Every fact the system
-          reports is independently re-checked against the source document before it&apos;s
-          shown — the system never trusts its own summary without verifying it against the
-          real page first. This is a pilot deployment for internal bid-team use; it does not
-          hold third-party compliance certifications, and we won&apos;t claim ones it doesn&apos;t.
-        </p>
-      </motion.div>
-    </section>
-  );
-}
-
-function FinalCta() {
-  return (
-    <section>
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.6 }}
-        transition={{ duration: 0.5 }}
-        className="mx-auto max-w-4xl px-6 py-24 text-center"
-      >
-        <h2 className="heading-tight text-3xl font-medium text-white">
-          Stop reading tenders end to end to find out if they&apos;re worth bidding on.
-        </h2>
-        <div className="mt-8">
-          <motion.div
-            className="inline-block"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <Link
-              href="/login"
-              className="inline-block rounded bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/20 transition-colors hover:bg-cyan-600"
-            >
-              Sign in to your workspace
+    <div className="min-h-screen bg-paper text-navy">
+      <header className="sticky top-0 z-50 border-b border-navy/5 bg-paper/90 backdrop-blur-xl">
+        <nav className="mx-auto flex h-17 max-w-7xl items-center justify-between px-6" aria-label="Main navigation">
+          <Brand />
+          <div className="flex items-center gap-3 sm:gap-8">
+            <a href="#platform" className="hidden text-sm font-medium transition-colors hover:text-cobalt sm:inline">
+              Platform
+            </a>
+            <a href="#analysis" className="hidden text-sm font-medium transition-colors hover:text-cobalt sm:inline">
+              Analysis
+            </a>
+            <Link href="/login" className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-medium text-white transition-colors hover:bg-navy/90">
+              Sign in <ArrowUpRight className="size-4" />
             </Link>
-          </motion.div>
-        </div>
-      </motion.div>
-    </section>
-  );
-}
+          </div>
+        </nav>
+      </header>
 
-function SiteFooter() {
-  return (
-    <footer className="border-t border-white/10">
-      <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-slate-500">
-        Tender AI Platform — advisory tool. Every output is for human review; the system
-        never submits, emails, or files anything on your behalf.
-      </div>
-    </footer>
+      <main>
+        <section id="platform" className="flex min-h-[calc(100vh-4.25rem)] items-center overflow-hidden px-6 py-16 sm:py-20">
+          <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-12 lg:gap-16">
+            <div className="animate-rise-in lg:col-span-7">
+              <span className="mb-7 inline-flex items-center gap-2 rounded-full bg-cobalt-light px-3 py-1.5 text-[11px] font-bold uppercase text-cobalt">
+                <span className="size-1.5 rounded-full bg-cobalt animate-soft-pulse" />
+                Bid team intelligence
+              </span>
+              <h1 className="max-w-190 font-display text-[clamp(2.8rem,5.3vw,5rem)] font-semibold leading-[1.12] text-navy">
+                Transform 1,000 pages into a <span className="text-cobalt">5-minute read.</span>
+              </h1>
+              <p className="mt-7 max-w-[57ch] text-base leading-relaxed text-slate-500 sm:text-lg">
+                Built for Indian government tender bid teams. Go from dense PDFs to an eligibility decision, a clear
+                synopsis, and ranked risks — with every finding linked to its source page.
+              </p>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <Link href="/login" className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-cobalt px-6 text-sm font-medium text-white transition-colors hover:bg-cobalt/90 hover:shadow-lg hover:shadow-cobalt/15">
+                  Sign in to workspace <ArrowRight className="size-4" />
+                </Link>
+                <a href="#analysis" className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-slate-200 bg-transparent px-6 text-sm font-medium text-navy transition-colors hover:bg-cobalt-light">
+                  Explore the analysis <ArrowRight className="size-4" />
+                </a>
+              </div>
+              <div className="mt-11 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-slate-200 pt-5 text-xs font-semibold text-slate-500">
+                <span className="flex items-center gap-2">
+                  <Check className="size-4 text-cobalt" /> Native text &amp; scanned pages
+                </span>
+                <span className="flex items-center gap-2">
+                  <Check className="size-4 text-cobalt" /> Tables &amp; clauses
+                </span>
+                <span className="flex items-center gap-2">
+                  <Check className="size-4 text-cobalt" /> Page-cited findings
+                </span>
+              </div>
+            </div>
+            <div className="lg:col-span-5">
+              <SampleAnalysis />
+            </div>
+          </div>
+        </section>
+
+        <section id="analysis" className="scroll-mt-17 bg-navy px-6 py-22 text-white sm:py-30">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-14 grid gap-5 md:grid-cols-[1fr_auto] md:items-end">
+              <div>
+                <p className="mb-4 text-xs font-bold uppercase text-cobalt-light">One tender. Three clear answers.</p>
+                <h2 className="max-w-2xl font-display text-3xl font-semibold leading-tight sm:text-4xl">
+                  The full picture before you make the call.
+                </h2>
+              </div>
+              <p className="max-w-sm text-sm leading-relaxed text-white/60">
+                A decision you can review, not a black box you have to trust.
+              </p>
+            </div>
+            <div className="grid gap-9 md:grid-cols-3 md:gap-0">
+              <article className="border-t border-white/20 pt-6 md:pr-9">
+                <span className="mb-10 flex items-center justify-between text-xs font-semibold text-cobalt-light">
+                  <span>01 / DECIDE</span>
+                  <FileCheck2 className="size-5" />
+                </span>
+                <h3 className="font-display text-2xl font-medium">Go/No-Go Analyzer</h3>
+                <p className="mt-5 max-w-[40ch] text-sm leading-relaxed text-white/65">
+                  Match turnover, certifications, and past projects against tender eligibility. See the score, gaps,
+                  and reasoning behind a Go, No-Go, or Conditional-Go recommendation.
+                </p>
+                <div className="mt-8 flex items-center gap-3 border-t border-white/10 pt-4 text-xs text-cobalt-light">
+                  <span className="grid size-7 place-items-center rounded-sm bg-cobalt/25">
+                    <Check className="size-4" />
+                  </span>
+                  Profile-to-criteria matching
+                </div>
+              </article>
+              <article className="border-t border-white/20 pt-6 md:border-l md:px-9">
+                <span className="mb-10 flex items-center justify-between text-xs font-semibold text-cobalt-light">
+                  <span>02 / UNDERSTAND</span>
+                  <ScanText className="size-5" />
+                </span>
+                <h3 className="font-display text-2xl font-medium">AI Tender Synopsis</h3>
+                <p className="mt-5 max-w-[40ch] text-sm leading-relaxed text-white/65">
+                  Get a structured, 5-minute read of the title, dates, financial figures, scope, eligibility, and
+                  payment terms, drawn from the full tender document.
+                </p>
+                <div className="mt-8 flex items-center gap-3 border-t border-white/10 pt-4 text-xs text-cobalt-light">
+                  <span className="grid size-7 place-items-center rounded-sm bg-cobalt/25">
+                    <Check className="size-4" />
+                  </span>
+                  Key terms in one view
+                </div>
+              </article>
+              <article className="border-t border-white/20 pt-6 md:border-l md:pl-9">
+                <span className="mb-10 flex items-center justify-between text-xs font-semibold text-cobalt-light">
+                  <span>03 / VERIFY</span>
+                  <ShieldAlert className="size-5" />
+                </span>
+                <h3 className="font-display text-2xl font-medium">AI Risk Finder</h3>
+                <p className="mt-5 max-w-[40ch] text-sm leading-relaxed text-white/65">
+                  Surface liquidated damages, indemnity, termination, and payment risks in a ranked list. Trace each
+                  flag to the exact page and clause.
+                </p>
+                <div className="mt-8 overflow-hidden rounded-md border border-white/10">
+                  <Image
+                    src="/images/risk-analysis.jpg"
+                    alt="Illustration of a ranked tender risk review interface"
+                    width={1024}
+                    height={656}
+                    className="aspect-2/1 w-full object-cover"
+                  />
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-slate-200 px-6 py-22 sm:py-28">
+          <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-12 md:items-start">
+            <div className="md:col-span-5">
+              <p className="mb-4 text-xs font-bold uppercase text-cobalt">Evidence, not guesswork</p>
+              <h2 className="font-display text-3xl font-semibold leading-tight sm:text-4xl">
+                From the finding, back to the page.
+              </h2>
+            </div>
+            <div className="md:col-span-7 md:pl-10">
+              <p className="max-w-2xl text-lg leading-relaxed text-slate-500">
+                A tender can run from 50 to 1,000+ pages of text, scans, and tables. The platform reads across
+                formats, then pairs its conclusions with page citations so your team can inspect the original
+                wording before deciding to bid.
+              </p>
+              <div className="mt-9 flex items-center gap-4 border-l-2 border-cobalt pl-5">
+                <span className="font-display text-3xl font-semibold text-cobalt">3–7 days</span>
+                <ArrowRight className="size-5 shrink-0 text-cobalt" />
+                <span className="font-display text-3xl font-semibold text-navy">minutes</span>
+              </div>
+              <p className="mt-3 pl-5 text-xs text-slate-500">
+                From manual first-pass review to a review-ready starting point.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-6 py-24 sm:py-30">
+          <div className="mx-auto max-w-7xl text-center">
+            <p className="mb-5 text-xs font-bold uppercase text-cobalt">For your next tender</p>
+            <h2 className="mx-auto max-w-3xl font-display text-3xl font-semibold leading-tight sm:text-4xl">
+              Spend less time finding the facts. More time deciding what matters.
+            </h2>
+            <Link href="/login" className="mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-cobalt px-7 text-sm font-medium text-white transition-colors hover:bg-cobalt/90 hover:shadow-lg hover:shadow-cobalt/15">
+              Sign in to workspace <ArrowRight className="size-4" />
+            </Link>
+            <p className="mt-5 text-xs text-slate-500">Access is provisioned for internal bid teams.</p>
+          </div>
+        </section>
+      </main>
+      <footer className="border-t border-slate-200 px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-xs text-slate-500 sm:flex-row">
+          <span>Tender AI Platform</span>
+          <span>Advisory outputs for human review. The platform does not submit bids on your behalf.</span>
+        </div>
+      </footer>
+    </div>
   );
 }
