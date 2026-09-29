@@ -91,7 +91,7 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
     <Card tone="dark" padding="sm" className="p-0">
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
         <span className="h-2 w-2 rounded-full bg-status-go" />
-        <span className="data-mono text-xs font-medium text-slate-300">Processing log</span>
+        <span className="data-mono text-xs font-medium text-muted-foreground">Processing log</span>
       </div>
       <div ref={scrollRef} className="max-h-56 space-y-1 overflow-y-auto px-4 py-3">
         <AnimatePresence initial={false}>
@@ -103,13 +103,13 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
               transition={{ duration: 0.2 }}
               className="data-mono flex gap-3 text-xs"
             >
-              <span className="flex-none text-slate-500">{line.time}</span>
-              <span className="text-slate-300">{line.text}</span>
+              <span className="flex-none text-muted-foreground">{line.time}</span>
+              <span className="text-muted-foreground">{line.text}</span>
             </motion.div>
           ))}
         </AnimatePresence>
         {lines.length === 0 && (
-          <p className="data-mono text-xs text-slate-500">Waiting for the first update…</p>
+          <p className="data-mono text-xs text-muted-foreground">Waiting for the first update…</p>
         )}
       </div>
     </Card>

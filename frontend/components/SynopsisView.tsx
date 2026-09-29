@@ -54,14 +54,14 @@ export default function SynopsisView({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 {titleMissing ? (
-                  <p className="text-base italic text-slate-400">
+                  <p className="text-base italic text-muted-foreground">
                     Title not found in the extracted document text
                   </p>
                 ) : (
-                  <h2 className="text-xl font-semibold text-ink-900">{result.title}</h2>
+                  <h2 className="text-xl font-semibold text-foreground">{result.title}</h2>
                 )}
                 {!authorityMissing && (
-                  <p className="mt-1 text-sm text-slate-500">{result.issuing_authority}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{result.issuing_authority}</p>
                 )}
               </div>
               <span
@@ -85,16 +85,16 @@ export default function SynopsisView({
                 onClick={() => setFiguresOpen((open) => !open)}
                 className="flex w-full items-center justify-between px-5 py-4 text-left"
               >
-                <span className="text-sm font-semibold text-ink-900">
+                <span className="text-sm font-semibold text-foreground">
                   Dates &amp; figures{" "}
-                  <span className="font-normal text-slate-400">({figureCount})</span>
+                  <span className="font-normal text-muted-foreground">({figureCount})</span>
                 </span>
                 <ChevronDownIcon
-                  className={`h-4 w-4 flex-none text-slate-400 transition-transform ${figuresOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 flex-none text-muted-foreground transition-transform ${figuresOpen ? "rotate-180" : ""}`}
                 />
               </button>
               {figuresOpen && (
-                <div className="grid gap-6 border-t border-slate-100 p-5 lg:grid-cols-2">
+                <div className="grid gap-6 border-t border-border p-5 lg:grid-cols-2">
                   {result.key_dates.length > 0 && (
                     <FactTable title="Key dates" documentId={documentId} facts={result.key_dates} />
                   )}
@@ -128,7 +128,7 @@ function ChecklistTab({
 }) {
   if (!goNoGoResult) {
     return (
-      <Card className="text-sm text-slate-500">
+      <Card className="text-sm text-muted-foreground">
         Not available yet — the Go/No-Go analysis hasn&apos;t finished processing.
       </Card>
     );
@@ -145,12 +145,12 @@ function ChecklistTab({
     <div className="space-y-8">
       {documentsRequired.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Documents to submit</h3>
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Documents to submit</h3>
           <ul className="space-y-2">
             {documentsRequired.map((doc, i) => (
               <li key={i}>
-                <Card padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
-                  <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-accent" />
+                <Card padding="sm" className="flex items-start gap-3 text-sm text-foreground">
+                  <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-primary" />
                   <CitationLink documentId={documentId} pageRef={doc.page_ref}>
                     {doc.description}
                   </CitationLink>
@@ -163,26 +163,26 @@ function ChecklistTab({
 
       {procedural.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Bid preparation checklist</h3>
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Bid preparation checklist</h3>
           <Card padding="sm" className="overflow-x-auto p-0">
             <table className="w-full min-w-160 border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-border bg-surface text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <th className="px-5 py-3">Item</th>
                   <th className="px-5 py-3">Required</th>
                   <th className="px-5 py-3">Company value</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {procedural.map((match, i) => (
-                  <tr key={i} className="hover:bg-slate-50">
+                  <tr key={i} className="hover:bg-surface">
                     <td className="px-5 py-3">
                       <CitationLink documentId={documentId} pageRef={match.page_ref}>
                         {match.criterion}
                       </CitationLink>
                     </td>
-                    <td className="px-5 py-3 text-slate-600">{match.required}</td>
-                    <td className="px-5 py-3 text-slate-600">{match.company_value}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{match.required}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{match.company_value}</td>
                   </tr>
                 ))}
               </tbody>
@@ -192,7 +192,7 @@ function ChecklistTab({
       )}
 
       {documentsRequired.length === 0 && procedural.length === 0 && (
-        <Card className="text-sm text-slate-500">
+        <Card className="text-sm text-muted-foreground">
           No document submission or bid-preparation items were extracted for this tender.
         </Card>
       )}
@@ -203,8 +203,8 @@ function ChecklistTab({
 function Section({ title, children }: { title: string; children: string }) {
   return (
     <Card padding="sm">
-      <h3 className="mb-2 text-sm font-semibold text-ink-900">{title}</h3>
-      <p className="text-sm leading-relaxed text-slate-600">{children}</p>
+      <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">{children}</p>
     </Card>
   );
 }
@@ -220,14 +220,14 @@ function FactTable({
 }) {
   return (
     <Card padding="sm">
-      <h3 className="mb-3 text-sm font-semibold text-ink-900">{title}</h3>
-      <dl className="divide-y divide-slate-100">
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
+      <dl className="divide-y divide-border">
         {facts.map((fact, i) => (
           <div key={i} className="py-3 text-sm first:pt-0 last:pb-0">
-            <dt className="text-slate-500">{fact.label}</dt>
+            <dt className="text-muted-foreground">{fact.label}</dt>
             <dd className="mt-1">
               <CitationLink documentId={documentId} pageRef={fact.page_ref}>
-                <span className="data-mono font-medium leading-relaxed text-ink-900">
+                <span className="data-mono font-medium leading-relaxed text-foreground">
                   {fact.value}
                 </span>
               </CitationLink>

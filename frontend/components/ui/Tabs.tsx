@@ -16,7 +16,7 @@ export default function Tabs<T extends string>({
 }) {
   const padding = size === "sm" ? "px-3 py-2" : "px-4 py-2.5";
   return (
-    <div className="flex gap-1 border-b border-slate-200">
+    <div className="flex gap-1 border-b border-border">
       {items.map((item) => (
         <button
           key={item.id}
@@ -24,8 +24,8 @@ export default function Tabs<T extends string>({
           onClick={() => onChange(item.id)}
           className={`-mb-px border-b-2 text-sm font-medium transition-colors ${padding} ${
             active === item.id
-              ? "border-accent text-accent"
-              : "border-transparent text-slate-500 hover:text-ink-900"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           {item.label}

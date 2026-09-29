@@ -1,12 +1,11 @@
 "use client";
 
+import { Check, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ApiError, createCompanyProfile, updateCompanyProfile } from "@/lib/api";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import Input from "@/components/ui/Input";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
 import type {
   CompanyProfileBankDetails,
   CompanyProfileDirector,
@@ -196,10 +195,12 @@ export default function CompanyProfileForm({
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaved(false);
 
     const annualTurnover = rowsToTurnover(turnoverRows);
     if (annualTurnover && !turnoverSource.trim()) {
@@ -292,6 +293,7 @@ export default function CompanyProfileForm({
       } else {
         await createCompanyProfile(payload);
       }
+      setSaved(true);
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save company profile");
@@ -301,434 +303,280 @@ export default function CompanyProfileForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">Company basics</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Company name">
-            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
-          </Field>
-          <Field label="Max bidding capacity (%)">
-            <Input
-              type="number"
-              value={maxCapacityPct}
-              onChange={(e) => setMaxCapacityPct(e.target.value)}
-            />
-          </Field>
+    <div className="min-w-0">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-display text-2xl font-semibold">{companyName || "New company profile"}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Company details for tender eligibility reviews</p>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Certifications (comma-separated)">
-            <Input value={certifications} onChange={(e) => setCertifications(e.target.value)} />
-          </Field>
-          <Field label="Geographic presence (states)">
-            <Input value={geographicPresence} onChange={(e) => setGeographicPresence(e.target.value)} />
-          </Field>
-          <Field label="Sectors">
-            <Input value={sectors} onChange={(e) => setSectors(e.target.value)} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">Statutory identity</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="CIN">
-            <Input value={cin} onChange={(e) => setCin(e.target.value)} />
-          </Field>
-          <Field label="ROC number">
-            <Input value={rocNumber} onChange={(e) => setRocNumber(e.target.value)} />
-          </Field>
-          <Field label="Section 8 licence number">
-            <Input value={section8LicenceNumber} onChange={(e) => setSection8LicenceNumber(e.target.value)} />
-          </Field>
-          <Field label="Date of incorporation" hint="DD-MM-YYYY">
-            <Input
-              placeholder="DD-MM-YYYY"
-              value={dateOfIncorporation}
-              onChange={(e) => setDateOfIncorporation(e.target.value)}
-            />
-          </Field>
-          <Field label="PAN">
-            <Input value={pan} onChange={(e) => setPan(e.target.value)} />
-          </Field>
-          <Field label="GSTIN">
-            <Input value={gstin} onChange={(e) => setGstin(e.target.value)} />
-          </Field>
-          <Field label="Udyam registration number">
-            <Input value={udyamRegistrationNumber} onChange={(e) => setUdyamRegistrationNumber(e.target.value)} />
-          </Field>
-          <Field label="NGO Darpan ID">
-            <Input value={ngoDarpanId} onChange={(e) => setNgoDarpanId(e.target.value)} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">Capital &amp; net worth</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Authorised capital (INR)">
-            <Input type="number" value={authorisedCapitalInr} onChange={(e) => setAuthorisedCapitalInr(e.target.value)} />
-          </Field>
-          <Field label="Paid-up capital (INR)">
-            <Input type="number" value={paidUpCapitalInr} onChange={(e) => setPaidUpCapitalInr(e.target.value)} />
-          </Field>
-          <Field label="Net worth (INR)">
-            <Input type="number" value={netWorthInr} onChange={(e) => setNetWorthInr(e.target.value)} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-1 text-sm font-semibold text-ink-900">Annual turnover, by year</h3>
-        <p className="mb-3 text-xs text-slate-500">
-          Confirmed turnover only — these figures drive Financial Capability scoring, so a
-          source document is required.
+        <Button type="submit" form="company-profile-form" loading={saving} icon={<Check className="h-4 w-4" />}>
+          Save changes
+        </Button>
+      </div>
+      {saved && (
+        <p role="status" className="mb-4 border-l-2 border-primary bg-accent p-3 text-sm text-primary">
+          Changes saved.
         </p>
-        <div className="space-y-2">
-          {turnoverRows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                placeholder="Year, e.g. 2024"
-                value={row.year}
-                onChange={(e) =>
-                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
-                }
-              />
-              <Input
-                type="number"
-                placeholder="Amount (INR)"
-                value={row.amount}
-                onChange={(e) =>
-                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
-                }
-              />
-              <RemoveRowButton
-                onClick={() => setTurnoverRows((rows) => rows.filter((_, j) => j !== i))}
-              />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add year"
-          onClick={() => setTurnoverRows((rows) => [...rows, { year: "", amount: "" }])}
-        />
-        <div className="mt-4 max-w-sm">
-          <Field label="Turnover source (which document these figures came from)">
-            <Input
-              placeholder="e.g. udyam_filing, audited_financials"
-              value={turnoverSource}
-              onChange={(e) => setTurnoverSource(e.target.value)}
-            />
-          </Field>
-        </div>
-      </Card>
+      )}
 
-      <Card tone="warning">
-        <h3 className="mb-1 text-sm font-semibold text-severity-medium">
-          Unconfirmed organizational turnover, by year
-        </h3>
-        <p className="mb-3 text-xs text-severity-medium/80">
-          Retained for reference only — not tied to a confirmed source document for this
-          legal entity. Never used for Financial Capability scoring.
-        </p>
-        <div className="space-y-2">
-          {unconfirmedTurnoverRows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                placeholder="Year, e.g. 2024_25_projected"
-                value={row.year}
-                onChange={(e) =>
-                  setUnconfirmedTurnoverRows((rows) =>
-                    rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)),
-                  )
-                }
-              />
-              <Input
-                type="number"
-                placeholder="Amount (INR)"
-                value={row.amount}
-                onChange={(e) =>
-                  setUnconfirmedTurnoverRows((rows) =>
-                    rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
-                  )
-                }
-              />
-              <RemoveRowButton
-                onClick={() =>
-                  setUnconfirmedTurnoverRows((rows) => rows.filter((_, j) => j !== i))
-                }
-              />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add year"
-          onClick={() =>
-            setUnconfirmedTurnoverRows((rows) => [...rows, { year: "", amount: "" }])
-          }
-        />
-      </Card>
+      <form id="company-profile-form" onSubmit={handleSubmit}>
+        <Section n="01" title="Company basics">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+            <Field label="Company name">
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+            </Field>
+            <Field label="Max bidding capacity (%)">
+              <Input type="number" value={maxCapacityPct} onChange={(e) => setMaxCapacityPct(e.target.value)} />
+            </Field>
+            <Field label="Certifications (comma-separated)">
+              <Input value={certifications} onChange={(e) => setCertifications(e.target.value)} />
+            </Field>
+            <Field label="Geographic presence (states)">
+              <Input value={geographicPresence} onChange={(e) => setGeographicPresence(e.target.value)} />
+            </Field>
+            <Field label="Sectors">
+              <Input value={sectors} onChange={(e) => setSectors(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
 
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">MSME classification, by year</h3>
-        <div className="space-y-2">
-          {msmeRows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                placeholder="Year, e.g. 2024-25"
-                value={row.year}
-                onChange={(e) =>
-                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
-                }
-              />
-              <Input
-                placeholder="Type, e.g. Micro"
-                value={row.type}
-                onChange={(e) =>
-                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, type: e.target.value } : r)))
-                }
-              />
-              <RemoveRowButton onClick={() => setMsmeRows((rows) => rows.filter((_, j) => j !== i))} />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add year"
-          onClick={() => setMsmeRows((rows) => [...rows, { year: "", type: "" }])}
-        />
-      </Card>
+        <Section n="02" title="Statutory identity">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="CIN">
+              <Input value={cin} onChange={(e) => setCin(e.target.value)} />
+            </Field>
+            <Field label="ROC number">
+              <Input value={rocNumber} onChange={(e) => setRocNumber(e.target.value)} />
+            </Field>
+            <Field label="Section 8 licence number">
+              <Input value={section8LicenceNumber} onChange={(e) => setSection8LicenceNumber(e.target.value)} />
+            </Field>
+            <Field label="Date of incorporation" hint="DD-MM-YYYY">
+              <Input placeholder="DD-MM-YYYY" value={dateOfIncorporation} onChange={(e) => setDateOfIncorporation(e.target.value)} />
+            </Field>
+            <Field label="PAN">
+              <Input value={pan} onChange={(e) => setPan(e.target.value)} />
+            </Field>
+            <Field label="GSTIN">
+              <Input value={gstin} onChange={(e) => setGstin(e.target.value)} />
+            </Field>
+            <Field label="Udyam registration number">
+              <Input value={udyamRegistrationNumber} onChange={(e) => setUdyamRegistrationNumber(e.target.value)} />
+            </Field>
+            <Field label="NGO Darpan ID">
+              <Input value={ngoDarpanId} onChange={(e) => setNgoDarpanId(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
 
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Directors</h3>
-        <div className="space-y-3">
-          {directorRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
-              <div className="grid gap-2 sm:grid-cols-5">
-                <Input
-                  placeholder="Name"
-                  value={row.name}
-                  onChange={(e) =>
-                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  placeholder="DIN / PAN"
-                  value={row.din_or_pan}
-                  onChange={(e) =>
-                    setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, din_or_pan: e.target.value } : r)),
-                    )
-                  }
-                />
-                <Input
-                  placeholder="Designation"
-                  value={row.designation}
-                  onChange={(e) =>
-                    setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, designation: e.target.value } : r)),
-                    )
-                  }
-                />
-                <Input
-                  placeholder="Category"
-                  value={row.category}
-                  onChange={(e) =>
-                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, category: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  placeholder="Appointed (date)"
-                  value={row.appointed}
-                  onChange={(e) =>
-                    setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, appointed: e.target.value } : r)),
-                    )
-                  }
-                />
-              </div>
-              <RemoveRowButton
-                label="Remove director"
-                onClick={() => setDirectorRows((rows) => rows.filter((_, j) => j !== i))}
-              />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add director"
-          onClick={() =>
-            setDirectorRows((rows) => [
-              ...rows,
-              { name: "", din_or_pan: "", designation: "", category: "", appointed: "" },
-            ])
-          }
-        />
-      </Card>
+        <Section n="03" title="Capital & net worth">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Authorised capital (INR)">
+              <Input type="number" value={authorisedCapitalInr} onChange={(e) => setAuthorisedCapitalInr(e.target.value)} />
+            </Field>
+            <Field label="Paid-up capital (INR)">
+              <Input type="number" value={paidUpCapitalInr} onChange={(e) => setPaidUpCapitalInr(e.target.value)} />
+            </Field>
+            <Field label="Net worth (INR)">
+              <Input type="number" value={netWorthInr} onChange={(e) => setNetWorthInr(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
 
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Government grants</h3>
-        <div className="space-y-3">
-          {grantRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
-              <div className="grid gap-2 sm:grid-cols-5">
+        <Section n="04" title="Annual turnover, by year">
+          <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+            Confirmed turnover only — these figures drive Financial Capability scoring, so a source document is required.
+          </p>
+          <div className="space-y-2">
+            {turnoverRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
                 <Input
-                  placeholder="Department"
-                  value={row.department}
-                  onChange={(e) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, department: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  placeholder="Source"
-                  value={row.source}
-                  onChange={(e) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, source: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  placeholder="FY, e.g. 2023-24"
-                  value={row.fy}
-                  onChange={(e) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, fy: e.target.value } : r)))
-                  }
+                  placeholder="Year, e.g. 2024"
+                  value={row.year}
+                  onChange={(e) => setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))}
                 />
                 <Input
                   type="number"
                   placeholder="Amount (INR)"
                   value={row.amount}
-                  onChange={(e) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
-                  }
+                  onChange={(e) => setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))}
                 />
-                <Input
-                  placeholder="Purpose"
-                  value={row.purpose}
-                  onChange={(e) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, purpose: e.target.value } : r)))
-                  }
-                />
+                <RemoveRowButton onClick={() => setTurnoverRows((rows) => rows.filter((_, j) => j !== i))} />
               </div>
-              <RemoveRowButton
-                label="Remove grant"
-                onClick={() => setGrantRows((rows) => rows.filter((_, j) => j !== i))}
-              />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add grant"
-          onClick={() =>
-            setGrantRows((rows) => [
-              ...rows,
-              { department: "", source: "", fy: "", amount: "", purpose: "" },
-            ])
-          }
-        />
-      </Card>
+            ))}
+          </div>
+          <AddRowButton label="Add year" onClick={() => setTurnoverRows((rows) => [...rows, { year: "", amount: "" }])} />
+          <div className="mt-4 max-w-sm">
+            <Field label="Turnover source (which document these figures came from)">
+              <Input placeholder="e.g. udyam_filing, audited_financials" value={turnoverSource} onChange={(e) => setTurnoverSource(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
 
-      <Card>
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">Bank details</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Bank">
-            <Input value={bankName} onChange={(e) => setBankName(e.target.value)} />
-          </Field>
-          <Field label="IFSC">
-            <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} />
-          </Field>
-          <Field label="Account number">
-            <Input value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">Employment count</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Male">
-            <Input type="number" value={employeesMale} onChange={(e) => setEmployeesMale(e.target.value)} />
-          </Field>
-          <Field label="Female">
-            <Input type="number" value={employeesFemale} onChange={(e) => setEmployeesFemale(e.target.value)} />
-          </Field>
-          <Field label="Other">
-            <Input type="number" value={employeesOther} onChange={(e) => setEmployeesOther(e.target.value)} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Past projects</h3>
-        <div className="space-y-3">
-          {projectRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
-              <div className="grid gap-2 sm:grid-cols-5">
+        <section className="border-t border-border pb-9 pt-6">
+          <div className="mb-6 flex items-center gap-3">
+            <span className="flex h-8.5 w-8.5 flex-none items-center justify-center rounded-md bg-severity-medium/10 font-display text-xs font-extrabold text-severity-medium">
+              05
+            </span>
+            <h3 className="font-display text-lg font-semibold text-severity-medium">Unconfirmed organizational turnover, by year</h3>
+          </div>
+          <p className="-mt-4 mb-4 text-xs text-severity-medium/80">
+            Retained for reference only — not tied to a confirmed source document for this legal entity. Never used for Financial Capability scoring.
+          </p>
+          <div className="space-y-2 border border-severity-medium/25 bg-severity-medium/5 p-3">
+            {unconfirmedTurnoverRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
                 <Input
-                  placeholder="Project name"
-                  value={row.name}
-                  onChange={(e) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  placeholder="Client"
-                  value={row.client}
-                  onChange={(e) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, client: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Value (INR)"
-                  value={row.value}
-                  onChange={(e) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Year"
+                  placeholder="Year, e.g. 2024_25_projected"
                   value={row.year}
-                  onChange={(e) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
-                  }
+                  onChange={(e) => setUnconfirmedTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))}
                 />
                 <Input
-                  placeholder="Sector"
-                  value={row.sector}
-                  onChange={(e) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, sector: e.target.value } : r)))
-                  }
+                  type="number"
+                  placeholder="Amount (INR)"
+                  value={row.amount}
+                  onChange={(e) => setUnconfirmedTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))}
                 />
+                <RemoveRowButton onClick={() => setUnconfirmedTurnoverRows((rows) => rows.filter((_, j) => j !== i))} />
               </div>
-              <RemoveRowButton
-                label="Remove project"
-                onClick={() => setProjectRows((rows) => rows.filter((_, j) => j !== i))}
-              />
-            </div>
-          ))}
-        </div>
-        <AddRowButton
-          label="Add project"
-          onClick={() =>
-            setProjectRows((rows) => [
-              ...rows,
-              { name: "", client: "", value: "", year: "", sector: "" },
-            ])
-          }
-        />
-      </Card>
+            ))}
+          </div>
+          <AddRowButton label="Add year" onClick={() => setUnconfirmedTurnoverRows((rows) => [...rows, { year: "", amount: "" }])} />
+        </section>
 
-      {error && <p className="text-sm text-severity-high">{error}</p>}
+        <Section n="06" title="MSME classification, by year">
+          <div className="space-y-2">
+            {msmeRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  placeholder="Year, e.g. 2024-25"
+                  value={row.year}
+                  onChange={(e) => setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))}
+                />
+                <Input
+                  placeholder="Type, e.g. Micro"
+                  value={row.type}
+                  onChange={(e) => setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, type: e.target.value } : r)))}
+                />
+                <RemoveRowButton onClick={() => setMsmeRows((rows) => rows.filter((_, j) => j !== i))} />
+              </div>
+            ))}
+          </div>
+          <AddRowButton label="Add year" onClick={() => setMsmeRows((rows) => [...rows, { year: "", type: "" }])} />
+        </Section>
 
-      <Button type="submit" loading={saving}>
-        {existing ? "Save changes" : "Create profile"}
-      </Button>
-    </form>
+        <Section n="07" title="Directors">
+          <div className="space-y-3">
+            {directorRows.map((row, i) => (
+              <div key={i} className="border border-border bg-surface p-4">
+                <div className="grid gap-2 sm:grid-cols-5">
+                  <Input placeholder="Name" value={row.name} onChange={(e) => setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))} />
+                  <Input placeholder="DIN / PAN" value={row.din_or_pan} onChange={(e) => setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, din_or_pan: e.target.value } : r)))} />
+                  <Input placeholder="Designation" value={row.designation} onChange={(e) => setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, designation: e.target.value } : r)))} />
+                  <Input placeholder="Category" value={row.category} onChange={(e) => setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, category: e.target.value } : r)))} />
+                  <Input placeholder="Appointed (date)" value={row.appointed} onChange={(e) => setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, appointed: e.target.value } : r)))} />
+                </div>
+                <RemoveRowButton label="Remove director" onClick={() => setDirectorRows((rows) => rows.filter((_, j) => j !== i))} />
+              </div>
+            ))}
+          </div>
+          <AddRowButton
+            label="Add director"
+            onClick={() => setDirectorRows((rows) => [...rows, { name: "", din_or_pan: "", designation: "", category: "", appointed: "" }])}
+          />
+        </Section>
+
+        <Section n="08" title="Government grants">
+          <div className="space-y-3">
+            {grantRows.map((row, i) => (
+              <div key={i} className="border border-border bg-surface p-4">
+                <div className="grid gap-2 sm:grid-cols-5">
+                  <Input placeholder="Department" value={row.department} onChange={(e) => setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, department: e.target.value } : r)))} />
+                  <Input placeholder="Source" value={row.source} onChange={(e) => setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, source: e.target.value } : r)))} />
+                  <Input placeholder="FY, e.g. 2023-24" value={row.fy} onChange={(e) => setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, fy: e.target.value } : r)))} />
+                  <Input type="number" placeholder="Amount (INR)" value={row.amount} onChange={(e) => setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))} />
+                  <Input placeholder="Purpose" value={row.purpose} onChange={(e) => setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, purpose: e.target.value } : r)))} />
+                </div>
+                <RemoveRowButton label="Remove grant" onClick={() => setGrantRows((rows) => rows.filter((_, j) => j !== i))} />
+              </div>
+            ))}
+          </div>
+          <AddRowButton
+            label="Add grant"
+            onClick={() => setGrantRows((rows) => [...rows, { department: "", source: "", fy: "", amount: "", purpose: "" }])}
+          />
+        </Section>
+
+        <Section n="09" title="Bank details">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-3">
+            <Field label="Bank">
+              <Input value={bankName} onChange={(e) => setBankName(e.target.value)} />
+            </Field>
+            <Field label="IFSC">
+              <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} />
+            </Field>
+            <Field label="Account number">
+              <Input value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
+
+        <Section n="10" title="Employment count">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-3">
+            <Field label="Male">
+              <Input type="number" value={employeesMale} onChange={(e) => setEmployeesMale(e.target.value)} />
+            </Field>
+            <Field label="Female">
+              <Input type="number" value={employeesFemale} onChange={(e) => setEmployeesFemale(e.target.value)} />
+            </Field>
+            <Field label="Other">
+              <Input type="number" value={employeesOther} onChange={(e) => setEmployeesOther(e.target.value)} />
+            </Field>
+          </div>
+        </Section>
+
+        <Section n="11" title="Past projects">
+          <div className="space-y-3">
+            {projectRows.map((row, i) => (
+              <div key={i} className="border border-border bg-surface p-4">
+                <div className="grid gap-2 sm:grid-cols-5">
+                  <Input placeholder="Project name" value={row.name} onChange={(e) => setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))} />
+                  <Input placeholder="Client" value={row.client} onChange={(e) => setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, client: e.target.value } : r)))} />
+                  <Input type="number" placeholder="Value (INR)" value={row.value} onChange={(e) => setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))} />
+                  <Input type="number" placeholder="Year" value={row.year} onChange={(e) => setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))} />
+                  <Input placeholder="Sector" value={row.sector} onChange={(e) => setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, sector: e.target.value } : r)))} />
+                </div>
+                <RemoveRowButton label="Remove project" onClick={() => setProjectRows((rows) => rows.filter((_, j) => j !== i))} />
+              </div>
+            ))}
+          </div>
+          <AddRowButton
+            label="Add project"
+            onClick={() => setProjectRows((rows) => [...rows, { name: "", client: "", value: "", year: "", sector: "" }])}
+          />
+        </Section>
+
+        {error && <p className="mt-6 text-sm text-severity-high">{error}</p>}
+      </form>
+    </div>
+  );
+}
+
+function Section({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-border pb-9 pt-6">
+      <div className="mb-6 flex items-center gap-3">
+        <span className="step-number">{n}</span>
+        <h3 className="font-display text-lg font-semibold">{title}</h3>
+      </div>
+      {children}
+    </section>
   );
 }
 
 function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button variant="ghost" size="xs" className="mt-2 px-0! text-accent hover:text-indigo-700" onClick={onClick} icon={<PlusIcon className="h-3.5 w-3.5" />}>
+    <Button variant="ghost" size="xs" className="mt-2 px-0!" onClick={onClick} icon={<Plus className="h-3.5 w-3.5" />}>
       {label}
     </Button>
   );
@@ -739,9 +587,9 @@ function RemoveRowButton({ label, onClick }: { label?: string; onClick: () => vo
     <Button
       variant="ghost"
       size="xs"
-      className="text-slate-400 hover:text-severity-high"
+      className="text-muted-foreground hover:text-severity-high"
       onClick={onClick}
-      icon={<TrashIcon className="h-3.5 w-3.5" />}
+      icon={<Trash2 className="h-3.5 w-3.5" />}
     >
       {label ?? "Remove"}
     </Button>

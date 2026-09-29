@@ -12,15 +12,16 @@ const NAV_LINKS = [
   { href: "/company-profile", label: "Company profiles" },
 ];
 
-/** Wraps every authenticated page: auth check + the app's own light-mode chrome,
- * distinct from the landing page's dark marketing world (DESIGN.md — Restrained
- * color strategy, this is an Operate surface). */
+/** Wraps every authenticated page: auth check + the app's own chrome. `<main>` is
+ * deliberately unconstrained (no max-width/padding) — each page owns its own
+ * full-bleed hero header (via PageHeader) plus a contained body section below it,
+ * matching the pulled design's own layout convention (docs/DESIGN.md Revision 5). */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-paper text-ink-900">
+      <div className="min-h-screen bg-background text-foreground">
         <TopBar />
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+        <main>{children}</main>
       </div>
     </AuthGuard>
   );
@@ -31,40 +32,35 @@ function TopBar() {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-            <span className="flex h-7 w-7 flex-none items-center justify-center rounded bg-ink-950 text-xs font-bold text-accent-bright">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
+      <div className="mx-auto flex min-h-16 max-w-305 flex-wrap items-center justify-between gap-x-5 gap-y-2 px-5 py-2 md:px-8">
+        <div className="flex flex-wrap items-center gap-x-9 gap-y-2">
+          <Link href="/dashboard" className="inline-flex shrink-0 items-center gap-2.5 font-semibold text-foreground">
+            <span className="flex size-8 items-center justify-center rounded-[3px] bg-primary text-sm font-bold text-primary-foreground">
               T
             </span>
-            <span>Tender AI Platform</span>
+            <span className="text-[15px]">
+              Tender AI <span className="text-primary">Platform</span>
+            </span>
           </Link>
-          <nav className="flex items-center gap-1 sm:gap-2">
+          <nav className="flex items-center gap-1" aria-label="Main navigation">
             {NAV_LINKS.map((link) => {
               const active = pathname === link.href || pathname.startsWith(link.href + "/");
               return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    active ? "bg-accent/10 text-accent" : "text-slate-500 hover:text-ink-900"
-                  }`}
-                >
+                <Link key={link.href} href={link.href} className={`nav-link ${active ? "nav-link-active" : ""}`}>
                   {link.label}
                 </Link>
               );
             })}
           </nav>
         </div>
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-2">
           <Button href="/upload" variant="dark" size="sm" icon={<UploadIcon className="h-4 w-4" />}>
             Upload tender
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="px-0!"
             onClick={() => {
               clearToken();
               router.push("/login");

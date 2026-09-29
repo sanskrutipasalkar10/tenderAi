@@ -63,7 +63,7 @@ function PQChecklistTab({
 }) {
   if (!goNoGoResult.pq_checklist || goNoGoResult.pq_checklist.length === 0) {
     return (
-      <Card className="text-sm text-slate-500">
+      <Card className="text-sm text-muted-foreground">
         Not available — the PQ checklist call didn&apos;t return a result for this document.
       </Card>
     );
@@ -73,18 +73,18 @@ function PQChecklistTab({
     <Card padding="sm" className="overflow-x-auto p-0">
       <table className="w-full min-w-180 border-collapse text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <tr className="border-b border-border bg-surface text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <th className="px-5 py-3">Category</th>
             <th className="px-5 py-3">Tender requirement</th>
             <th className="px-5 py-3">Company value</th>
             <th className="px-5 py-3">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {goNoGoResult.pq_checklist.map((item, i) => (
-            <tr key={i} className="hover:bg-slate-50">
+            <tr key={i} className="hover:bg-surface">
               <td className="px-5 py-3">{item.category}</td>
-              <td className="px-5 py-3 text-slate-600">
+              <td className="px-5 py-3 text-muted-foreground">
                 {item.page_ref !== null ? (
                   <CitationLink documentId={documentId} pageRef={item.page_ref}>
                     {item.tender_requirement ?? "—"}
@@ -93,7 +93,7 @@ function PQChecklistTab({
                   item.tender_requirement ?? "—"
                 )}
               </td>
-              <td className="px-5 py-3 text-slate-600">{item.company_value ?? "—"}</td>
+              <td className="px-5 py-3 text-muted-foreground">{item.company_value ?? "—"}</td>
               <td className="px-5 py-3">
                 <CriterionStatusBadge status={item.status} />
               </td>
@@ -108,7 +108,7 @@ function PQChecklistTab({
 function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
   if (goNoGoResult.tq_score === null || !goNoGoResult.tq_factor_scores) {
     return (
-      <Card className="text-sm text-slate-500">
+      <Card className="text-sm text-muted-foreground">
         Not available — the TQ scoring call didn&apos;t return a result for this document.
       </Card>
     );
@@ -118,27 +118,27 @@ function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
     <div className="space-y-6">
       <Card padding="lg">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-10">
-          <ScoreGauge score={goNoGoResult.tq_score} label="Technical Qualification score" colorClass="stroke-accent" />
+          <ScoreGauge score={goNoGoResult.tq_score} label="Technical Qualification score" colorClass="stroke-primary" />
         </div>
       </Card>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Factor breakdown</h3>
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Factor breakdown</h3>
         <Card padding="sm" className="overflow-x-auto p-0">
           <table className="w-full min-w-100 border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-surface text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="px-5 py-3">Factor</th>
                 <th className="px-5 py-3">Weight</th>
                 <th className="px-5 py-3">Score</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {Object.entries(TQ_FACTOR_WEIGHTS).map(([factor, weight]) => (
-                <tr key={factor} className="hover:bg-slate-50">
+                <tr key={factor} className="hover:bg-surface">
                   <td className="px-5 py-3">{factor}</td>
-                  <td className="px-5 py-3 text-slate-600">{weight}%</td>
-                  <td className="px-5 py-3 text-slate-600">
+                  <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
+                  <td className="px-5 py-3 text-muted-foreground">
                     {goNoGoResult.tq_factor_scores?.[factor] ?? "—"}
                   </td>
                 </tr>
@@ -191,7 +191,7 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
       </Row>
       <Row label="Major Technical Gap">{goNoGoResult.major_technical_gap ?? "Not available"}</Row>
       <Row label="Final Recommendation">
-        <span className="font-semibold text-ink-900">
+        <span className="font-semibold text-foreground">
           {RECOMMENDATION_LABEL[goNoGoResult.decision]}
         </span>
       </Row>
@@ -201,16 +201,16 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm text-ink-900">{children}</span>
+    <div className="flex flex-col gap-1 border-b border-border pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground">{children}</span>
     </div>
   );
 }
 
 function PartnerPlaceholderTab() {
   return (
-    <Card className="text-sm text-slate-500">
+    <Card className="text-sm text-muted-foreground">
       Partner/OEM route assessment isn&apos;t built yet — it needs partner-company
       capability data that doesn&apos;t exist anywhere in this system today. Coming soon.
     </Card>

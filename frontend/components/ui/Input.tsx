@@ -1,9 +1,9 @@
 import type { InputHTMLAttributes } from "react";
 
 const LIGHT =
-  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink-900 focus:border-accent focus:outline-none";
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none";
 const DARK =
-  "w-full rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-accent-bright";
+  "w-full rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-primary";
 
 export default function Input({
   onDark = false,

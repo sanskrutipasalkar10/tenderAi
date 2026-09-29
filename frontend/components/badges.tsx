@@ -44,7 +44,7 @@ const CRITERION_STYLES: Record<PQChecklistStatus, string> = {
   fail: "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",
   insufficient_data:
     "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
-  not_applicable: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
+  not_applicable: "bg-secondary text-muted-foreground ring-1 ring-border",
 };
 
 const CRITERION_LABEL: Record<PQChecklistStatus, string> = {
@@ -75,11 +75,11 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
 };
 
 const STATUS_STYLES: Record<DocumentStatus, string> = {
-  uploaded: "bg-slate-100 text-slate-600",
-  classifying: "bg-accent/10 text-accent",
-  extracting: "bg-accent/10 text-accent",
-  extracted: "bg-accent/10 text-accent",
-  analyzing: "bg-accent/10 text-accent",
+  uploaded: "bg-secondary text-muted-foreground",
+  classifying: "bg-accent text-primary",
+  extracting: "bg-accent text-primary",
+  extracted: "bg-accent text-primary",
+  analyzing: "bg-accent text-primary",
   ready: "bg-status-go/10 text-status-go",
   failed: "bg-status-no-go/10 text-status-no-go",
 };

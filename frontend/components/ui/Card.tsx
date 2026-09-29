@@ -7,11 +7,11 @@ const PADDING: Record<"sm" | "md" | "lg", string> = {
 };
 
 const TONE: Record<"default" | "subtle" | "danger" | "warning" | "dark", string> = {
-  default: "border-slate-200 bg-white",
-  subtle: "border-slate-100 bg-slate-50",
+  default: "border-border bg-card",
+  subtle: "border-border bg-secondary",
   danger: "border-severity-high/20 bg-severity-high/5",
   warning: "border-severity-medium/25 bg-severity-medium/5",
-  dark: "border-white/10 bg-ink-950",
+  dark: "border-foreground/10 bg-foreground text-background",
 };
 
 export default function Card({

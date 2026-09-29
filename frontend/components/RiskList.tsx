@@ -42,7 +42,7 @@ export default function RiskList({
             colorClass={gaugeColor(result.risk_score)}
           />
           <div className="text-center sm:text-left">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               {result.risks.length} risk{result.risks.length === 1 ? "" : "s"} identified, ranked
               by severity below. Every clause links to its source page.
             </p>
@@ -52,7 +52,7 @@ export default function RiskList({
       </Card>
 
       {result.risks.length === 0 ? (
-        <p className="text-sm text-slate-500">No risks flagged for this document.</p>
+        <p className="text-sm text-muted-foreground">No risks flagged for this document.</p>
       ) : (
         <ul className="space-y-3">
           {sortedRisks.map((risk, i) => (
@@ -60,17 +60,17 @@ export default function RiskList({
               <Card padding="sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <SeverityBadge severity={risk.severity} />
-                  <span className="text-sm font-semibold text-ink-900">{risk.category}</span>
+                  <span className="text-sm font-semibold text-foreground">{risk.category}</span>
                   {!risk.verified && (
                     <span
-                      className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500"
+                      className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                       title="This citation's page could not be re-verified against the source document — shown, not hidden (docs/SPEC.md §7)"
                     >
                       unverified
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-slate-600">{risk.clause_summary}</p>
+                <p className="text-sm text-muted-foreground">{risk.clause_summary}</p>
                 <div className="mt-3">
                   <CitationLink documentId={documentId} pageRef={risk.page_ref}>
                     View source clause
@@ -121,18 +121,18 @@ function ExportButton({ documentId, result }: { documentId: string; result: Risk
         Export
       </Button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
           <button
             type="button"
             onClick={exportCsv}
-            className="block w-full px-4 py-2 text-left text-sm text-ink-900 hover:bg-slate-50"
+            className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface"
           >
             Export as Excel (CSV)
           </button>
           <button
             type="button"
             onClick={exportPdf}
-            className="block w-full px-4 py-2 text-left text-sm text-ink-900 hover:bg-slate-50"
+            className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface"
           >
             Export as PDF (print)
           </button>

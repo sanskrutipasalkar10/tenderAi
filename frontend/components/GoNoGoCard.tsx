@@ -110,7 +110,7 @@ export default function GoNoGoCard({
               <ScoreGauge score={result.score} label="Go/No-Go score" colorClass={GAUGE_COLOR[result.decision]} />
               <div className="flex flex-col items-center gap-2 sm:items-start">
                 <DecisionBadge decision={result.decision} />
-                <p className="max-w-md text-center text-sm text-slate-500 sm:text-left">
+                <p className="max-w-md text-center text-sm text-muted-foreground sm:text-left">
                   {buildJustification(result)}
                 </p>
               </div>
@@ -119,22 +119,22 @@ export default function GoNoGoCard({
 
           {result.factor_scores && (
             <Card>
-              <h3 className="mb-4 text-sm font-semibold text-ink-900">Decision factors</h3>
+              <h3 className="mb-4 text-sm font-semibold text-foreground">Decision factors</h3>
               <div className="space-y-2.5">
                 {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => {
                   const score = result.factor_scores?.[factor] ?? 0;
                   return (
                     <div key={factor} className="flex items-center gap-3">
-                      <span className="w-44 flex-none truncate text-xs text-slate-500">{factor}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span className="w-44 flex-none truncate text-xs text-muted-foreground">{factor}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-accent"
+                          className="h-full rounded-full bg-primary"
                           style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
                         />
                       </div>
-                      <span className="data-mono w-24 flex-none whitespace-nowrap text-right text-xs text-slate-500">
+                      <span className="data-mono w-24 flex-none whitespace-nowrap text-right text-xs text-muted-foreground">
                         {score}
-                        <span className="text-slate-300"> · {weight}%</span>
+                        <span className="text-muted-foreground"> · {weight}%</span>
                       </span>
                     </div>
                   );
@@ -145,11 +145,11 @@ export default function GoNoGoCard({
 
           {result.gaps.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-ink-900">Gaps &amp; blockers</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Gaps &amp; blockers</h3>
               <ul className="space-y-2">
                 {result.gaps.map((gap) => (
                   <li key={gap}>
-                    <Card tone="danger" padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
+                    <Card tone="danger" padding="sm" className="flex items-start gap-3 text-sm text-foreground">
                       <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-severity-high" />
                       {gap}
                     </Card>
@@ -161,7 +161,7 @@ export default function GoNoGoCard({
 
           {canResubmit && (
             <Card className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 {hasReview
                   ? "The score above still reflects the model's original judgment. Resubmit to re-score it against the criteria you've reviewed."
                   : "Review at least one criterion in the Details tab before resubmitting — resubmitting re-scores against reviewed criteria only."}
@@ -188,22 +188,22 @@ export default function GoNoGoCard({
         <div className="space-y-8">
           {result.factor_scores && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-ink-900">Factor breakdown</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Factor breakdown</h3>
               <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-100 border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-border bg-surface text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <th className="px-5 py-3">Factor</th>
                       <th className="px-5 py-3">Weight</th>
                       <th className="px-5 py-3">Score</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => (
-                      <tr key={factor} className="hover:bg-slate-50">
+                      <tr key={factor} className="hover:bg-surface">
                         <td className="px-5 py-3">{factor}</td>
-                        <td className="px-5 py-3 text-slate-600">{weight}%</td>
-                        <td className="px-5 py-3 text-slate-600">
+                        <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
+                        <td className="px-5 py-3 text-muted-foreground">
                           {result.factor_scores?.[factor] ?? "—"}
                         </td>
                       </tr>
@@ -216,27 +216,27 @@ export default function GoNoGoCard({
 
           {eligibility.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-ink-900">Eligibility criteria</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Eligibility criteria</h3>
               <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-160 border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-border bg-surface text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <th className="px-5 py-3">Criterion</th>
                       <th className="px-5 py-3">Required</th>
                       <th className="px-5 py-3">Company value</th>
                       <th className="px-5 py-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {eligibility.map(({ match, i }) => (
-                      <tr key={i} className="hover:bg-slate-50">
+                      <tr key={i} className="hover:bg-surface">
                         <td className="px-5 py-3">
                           <CitationLink documentId={documentId} pageRef={match.page_ref}>
                             {match.criterion}
                           </CitationLink>
                         </td>
-                        <td className="px-5 py-3 text-slate-600">{match.required}</td>
-                        <td className="px-5 py-3 text-slate-600">{match.company_value}</td>
+                        <td className="px-5 py-3 text-muted-foreground">{match.required}</td>
+                        <td className="px-5 py-3 text-muted-foreground">{match.company_value}</td>
                         <td className="px-5 py-3">
                           <CriterionStatusBadge status={match.status} />
                           {match.gate && (
@@ -258,12 +258,12 @@ export default function GoNoGoCard({
 
           {result.next_steps.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-ink-900">Recommended next steps</h3>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Recommended next steps</h3>
               <ul className="space-y-2">
                 {result.next_steps.map((step, i) => (
                   <li key={step}>
-                    <Card padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
-                      <span className="data-mono mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border border-slate-300 text-[11px] text-slate-400">
+                    <Card padding="sm" className="flex items-start gap-3 text-sm text-foreground">
+                      <span className="data-mono mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border border-input text-[11px] text-muted-foreground">
                         {i + 1}
                       </span>
                       {step}
@@ -293,7 +293,7 @@ function CriterionReview({
 
   if (match.human_override) {
     return (
-      <div className="mt-1 text-xs text-slate-500">
+      <div className="mt-1 text-xs text-muted-foreground">
         Reviewed: marked <span className="font-semibold">{match.human_override.status}</span>
         {match.human_override.note && <> — {match.human_override.note}</>}
       </div>
@@ -314,20 +314,20 @@ function CriterionReview({
 
   if (!open) {
     return (
-      <Button variant="ghost" size="xs" className="mt-1 px-0! text-accent hover:text-indigo-700" onClick={() => setOpen(true)}>
+      <Button variant="ghost" size="xs" className="mt-1 px-0! text-primary" onClick={() => setOpen(true)}>
         Review
       </Button>
     );
   }
 
   return (
-    <div className="mt-2 space-y-2 rounded border border-slate-200 bg-slate-50 p-2">
+    <div className="mt-2 space-y-2 rounded border border-border bg-surface p-2">
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Evidence / note (optional)"
         rows={2}
-        className="w-full rounded border border-slate-300 px-2 py-1 text-xs text-ink-900 focus:border-accent focus:outline-none"
+        className="w-full rounded border border-input px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
       />
       <div className="flex gap-2">
         <Button variant="success" size="xs" disabled={submitting} onClick={() => submit("pass")}>

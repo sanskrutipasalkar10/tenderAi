@@ -212,6 +212,76 @@ back through the actual API and rendered in the new `danger`/`danger-surface` st
 that the real auth call-and-error path survived the rewrite intact. Password
 show/hide toggle also exercised directly. `npm run build`/`npm run lint` clean.
 
+## Revision 5 — unified palette, app-wide (supersedes Revisions 3 and 4)
+
+A second Lovable-designed project (`sanskrutipasalkar10/bid-analysis-studio`) covered
+the whole authenticated app this time — Dashboard, Upload, Company Profiles, and the
+tender detail page — not just landing/login. Its primary blue turned out to be nearly
+identical to Revision 4's cobalt (`oklch(0.485 0.19 260)` vs `oklch(0.485 0.184 260)`),
+so rather than scope this pull narrowly again (as Revision 4 was, deliberately, leaving
+the app on Indigo Precision), the user chose to unify the entire app onto this one
+palette — resolving the two-identity split Revision 4 had knowingly left open.
+
+**A real, important gap in the pulled design, found by reading every file before
+touching anything, not assumed**: the tender-detail page in this source project had no
+tabs at all — just one static page with three decorative "coming soon" placeholder
+cards ("Pending analysis" for each of Eligibility/Synopsis/Risk Finder). The real app
+has four working tabs there (Go/No-Go with the human-review-and-resubmit workflow,
+Synopsis, Company Checklist with 4 sub-tabs, Risk Finder with export), plus the
+citation-click page-viewer modal. Company Profiles in the source also covered only 3 of
+the real form's 10 sections. Asked directly, the user chose to port the *visual*
+design onto the *real* functionality rather than replace real features with a shallower
+mock — same principle as Revision 4's login port, now applied at much larger scale.
+
+**Full token replacement, not additive this time** — Revisions 3/4's tokens
+(`ink-950`/`ink-900`/`paper`/`accent`/`accent-bright`/`navy`/`cobalt`/`cobalt-light`/
+`success`/`warning`/`danger` and their `-surface` pairs) are gone, replaced by the
+pulled design's own full shadcn-style set: `background`/`foreground`/`card`/`popover`/
+`primary`/`primary-foreground`/`secondary`/`muted`/`muted-foreground`/`accent`/
+`accent-foreground`/`surface`/`dropzone`/`destructive`/`border`/`input`/`ring`, all in
+oklch. `accent` changed *meaning*, not just value — Revisions 3/4 used it for the
+strong brand color; here it's a pale wash (the strong color is `primary`), so every
+call site needed re-checking, not just repainting. Severity/status colors
+(`severity-high/medium/low`, `status-go/conditional/no-go`) are untouched, as in every
+revision — real risk/decision signals, never brand colors. One new addition beyond the
+source design: `--primary-bright`, a lighter tint of `primary` for text/icons on the
+landing page's one dark section — the source design is entirely light-mode and never
+needed a dark-context brand tint, so this fills the same gap `accent-bright` filled in
+Revision 4. Fonts: DM Sans (body) + Manrope (now `font-display`, was body font in
+Revisions 1-4) — Sora (Revision 4's display face) is no longer loaded.
+
+**A real bug from the mechanical rename pass, caught by review, not by the
+build** — Tailwind silently drops unknown utility classes rather than erroring, so a
+stale `bg-ink-900`/`text-accent`/etc. reference would compile clean and just render
+unstyled; `npm run build`/`npm run lint` cannot catch this class of mistake. A `sed`
+pass across 7 components hit its own bug: one rule converted `bg-accent/10` →
+`bg-accent`, and a later rule in the same pass matched that output and pushed it
+further to `bg-primary` — turning light informational pills (`bg-accent/10 text-accent`,
+e.g. `CitationLink`'s "linked document" tag) into unreadable solid-primary-on-
+solid-primary badges. Found by reading every touched file afterward rather than trusting
+the mechanical pass, alongside two related misses the `sed` rules didn't cover at all
+(`stroke-accent` on an SVG gauge, `decoration-accent/40` on citation underlines) — both
+would have rendered as a barely-visible pale wash instead of a real accent color.
+
+**Ported per-page** (worst-first, matching the source's own scope): Dashboard (metrics
+row + search, computed from real document/decision data, not the source's hardcoded
+sample array), Upload (2-column with real step-numbered sections), Company Profile
+(all 10 real sections restyled into the source's step-number + divider pattern,
+`Save changes` relocated to a header button linked to the form via `form=` — verified
+in a real browser that this still submits correctly), the tender-detail workspace
+(`PageHeader` restructured to own the full-bleed hero-header section every page in the
+source shares, `AppShell`'s `<main>` correspondingly un-constrained so each page can
+go full-bleed above its own contained body), then landing/login (recolored only, since
+Revision 4 had already gotten their layout right).
+
+**Verified in a real browser against real data**, not just visually: the real 34-tender
+dashboard, the real "C4i4 Lab" profile's all-11-section form (10 real sections + the
+amber unconfirmed-turnover section) loaded *and saved* successfully through the
+relocated header button, all 4 analysis tabs on a real `ready` document including the
+28-row PQ checklist, the citation modal opened against real extracted page text, and
+both the light hero and dark "analysis" section of the landing page. `npm run build`/
+`npm run lint` clean throughout.
+
 ## Provenance
 
 Built code-led (no image generation available in this environment) — the ambition

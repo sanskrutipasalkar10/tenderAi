@@ -9,20 +9,21 @@ type Variant = "primary" | "dark" | "outline" | "ghost" | "destructive" | "succe
 type Size = "xs" | "sm" | "md";
 
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-accent text-white hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400",
-  dark: "bg-ink-900 text-white hover:bg-ink-950 disabled:bg-slate-200 disabled:text-slate-400",
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground",
+  dark: "bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground",
   outline:
-    "border border-slate-300 bg-white text-ink-900 hover:border-accent hover:text-accent disabled:opacity-50",
-  ghost: "text-slate-500 hover:text-ink-900 disabled:opacity-50",
-  destructive: "bg-status-no-go text-white hover:bg-red-700 disabled:opacity-50",
+    "border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50",
+  ghost: "text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50",
+  destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50",
   success: "bg-status-go text-white hover:bg-green-700 disabled:opacity-50",
 };
 
 // Dark-ground variants (landing hero, login) need a different resting/hover treatment
-// than the same variant on a light "paper" background — e.g. `outline` on light paper
-// uses a light border, but on ink-950 needs a white-alpha border instead.
+// than the same variant on a light background — e.g. `outline` on light "background"
+// uses a light border, but on a dark ("foreground") background needs a white-alpha
+// border instead.
 const VARIANT_ON_DARK: Partial<Record<Variant, string>> = {
-  outline: "border border-white/15 bg-transparent text-slate-100 hover:border-accent-bright hover:text-accent-bright",
+  outline: "border border-white/15 bg-transparent text-slate-100 hover:border-primary hover:text-primary",
   ghost: "text-slate-300 hover:text-white",
 };
 

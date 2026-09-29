@@ -54,7 +54,7 @@ export default function ScoreGauge({
             r={RADIUS}
             strokeWidth={STROKE}
             fill="none"
-            className="stroke-slate-100"
+            className="stroke-border"
           />
           <motion.circle
             cx={SIZE / 2}
@@ -69,11 +69,11 @@ export default function ScoreGauge({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="data-mono text-3xl font-semibold text-ink-900">{display}</span>
-          <span className="text-xs text-slate-400">/ 100</span>
+          <span className="data-mono text-3xl font-semibold text-foreground">{display}</span>
+          <span className="text-xs text-muted-foreground">/ 100</span>
         </div>
       </div>
-      <span className="mt-3 text-sm font-medium text-slate-600">{label}</span>
+      <span className="mt-3 text-sm font-medium text-muted-foreground">{label}</span>
     </div>
   );
 }

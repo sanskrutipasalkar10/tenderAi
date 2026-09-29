@@ -1,15 +1,14 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
+import { ArrowRight, Check, FileText, UploadCloud, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import PageHeader from "@/components/ui/PageHeader";
 import Select from "@/components/ui/Select";
-import { UploadIcon } from "@/components/ui/icons";
 import { ApiError, listCompanyProfiles, uploadDocument } from "@/lib/api";
 import { STEPS } from "@/lib/steps";
 import type { CompanyProfileResponse } from "@/lib/types";
@@ -66,102 +65,137 @@ function UploadFlow() {
 
   return (
     <div>
-      <PageHeader title="Upload a tender" subtitle="50 to 1000+ pages — native text, scans, and tables are all handled." />
+      <PageHeader
+        eyebrow="NEW DOCUMENT / TENDER REVIEW"
+        title="Upload a tender"
+        subtitle="Bring a new document into your team's review workflow."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
-          <Card padding="lg">
-            <motion.div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                pickFile(e.dataTransfer.files[0] ?? null);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              animate={{
-                scale: dragging ? 1.015 : 1,
-                borderColor: dragging ? "var(--color-accent)" : "var(--color-slate-300, #cbd5e1)",
-              }}
-              transition={{ duration: 0.15 }}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed px-6 py-16 text-center ${
-                dragging ? "bg-accent/5" : "bg-white hover:border-slate-400"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-              />
-              <motion.div animate={{ y: dragging ? -4 : 0 }} transition={{ duration: 0.2 }} className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <UploadIcon className="h-6 w-6" />
-              </motion.div>
-              <AnimatePresence mode="wait">
-                {file ? (
-                  <motion.p key="filename" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-medium text-ink-900">
-                    {file.name}
-                  </motion.p>
-                ) : (
-                  <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <p className="font-medium text-ink-900">Drag and drop a tender PDF here</p>
-                    <p className="mt-1 text-sm text-slate-500">or click to browse</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+      <div className="mx-auto grid max-w-305 gap-12 px-5 py-12 md:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.85fr)] md:px-8">
+        <div>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="step-number">01</span>
+            <div>
+              <p className="eyebrow">YOUR DOCUMENT</p>
+              <h2 className="font-display text-xl font-semibold">Select tender PDF</h2>
+            </div>
+          </div>
 
-            {profiles.length > 0 && (
-              <div className="mt-6">
-                <Field label="Evaluate against company profile">
-                  <Select value={companyProfileId} onChange={(e) => setCompanyProfileId(e.target.value)}>
-                    <option value="">No company profile (skip Go/No-Go for now)</option>
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.company_name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-            )}
-
-            {error && <p className="mt-4 text-sm text-severity-high">{error}</p>}
-
-            <Button
-              onClick={handleUpload}
-              disabled={!file}
-              loading={uploading}
-              fullWidth
-              size="md"
-              className="mt-6"
-            >
-              {uploading ? "Uploading…" : "Upload and start analysis"}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            className="sr-only"
+            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            aria-label="Choose tender PDF"
+          />
+          <motion.div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              pickFile(e.dataTransfer.files[0] ?? null);
+            }}
+            animate={{ scale: dragging ? 1.01 : 1 }}
+            transition={{ duration: 0.15 }}
+            className={`flex min-h-70 flex-col items-center justify-center border border-dashed px-6 py-8 text-center transition-colors ${
+              dragging ? "border-primary bg-accent" : "border-dropzone bg-surface"
+            }`}
+          >
+            <span className="mb-5 flex size-14 items-center justify-center rounded-md bg-accent text-primary">
+              <UploadCloud size={26} strokeWidth={1.8} />
+            </span>
+            <p className="font-display text-lg font-semibold">Drag and drop your tender here</p>
+            <p className="mt-1 text-sm text-muted-foreground">or choose a file from your device</p>
+            <Button variant="outline" className="mt-6" onClick={() => fileInputRef.current?.click()} icon={<ArrowRight className="h-4 w-4" />}>
+              Browse files
             </Button>
-          </Card>
-        </motion.div>
+            <p className="mt-5 text-xs text-muted-foreground">PDF format</p>
+          </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 }}>
-          <Card padding="lg" tone="subtle">
-            <h2 className="mb-4 text-sm font-semibold text-ink-900">What happens next</h2>
-            <ol className="space-y-4">
-              {STEPS.map((step) => (
-                <li key={step.n} className="flex gap-3">
-                  <span className="data-mono text-xs font-semibold text-accent">{step.n}</span>
-                  <div>
-                    <p className="text-sm font-medium text-ink-900">{step.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{step.copy}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        </motion.div>
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-severity-high">
+              {error}
+            </p>
+          )}
+          {file && (
+            <div className="mt-4 flex items-center gap-3 border border-border bg-background p-4">
+              <FileText size={22} className="shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{(file.size / (1024 * 1024)).toFixed(2)} MB · Ready to upload</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Remove selected file"
+                onClick={() => {
+                  setFile(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="rounded-md p-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {profiles.length > 0 && (
+            <div className="mt-9 border-t border-border pt-7">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="step-number">02</span>
+                <div>
+                  <p className="eyebrow">ELIGIBILITY CONTEXT</p>
+                  <h2 className="font-display text-xl font-semibold">Company profile</h2>
+                </div>
+              </div>
+              <Field label="Evaluate against a company profile">
+                <Select value={companyProfileId} onChange={(e) => setCompanyProfileId(e.target.value)}>
+                  <option value="">No company profile (skip Go/No-Go for now)</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.company_name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Profiles help compare tender requirements with your organisation&apos;s credentials.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-border pt-7">
+            <Button size="md" disabled={!file} loading={uploading} onClick={handleUpload} icon={<UploadCloud className="h-4 w-4" />}>
+              Upload and start analysis
+            </Button>
+          </div>
+        </div>
+
+        <aside className="md:border-l md:border-border md:pl-10">
+          <p className="eyebrow mb-3">THE REVIEW PROCESS</p>
+          <h2 className="font-display text-2xl font-semibold leading-tight">From document to decision.</h2>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            A clear path through every tender, with the original pages close at hand.
+          </p>
+          <div className="mt-8 space-y-0">
+            {STEPS.map((step) => (
+              <div key={step.n} className="flex gap-4 border-t border-border py-5">
+                <span className="font-display text-lg font-semibold text-primary">{step.n}</span>
+                <div>
+                  <h3 className="font-semibold">{step.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.copy}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex items-center gap-2 text-sm font-medium text-primary">
+            <Check size={16} /> Every page read, nothing skipped
+          </div>
+        </aside>
       </div>
     </div>
   );

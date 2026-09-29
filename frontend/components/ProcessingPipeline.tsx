@@ -49,7 +49,7 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
     return (
       <Card tone="danger">
         <p className="text-sm font-semibold text-severity-high">Processing failed</p>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Something went wrong while processing this document. Try re-uploading it, or contact
           support if the problem persists.
         </p>
@@ -66,9 +66,9 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
   return (
     <Card padding="lg">
       <div className="relative">
-        <div className="absolute top-5 right-0 left-0 hidden h-0.5 bg-slate-100 sm:block" />
+        <div className="absolute top-5 right-0 left-0 hidden h-0.5 bg-muted sm:block" />
         <motion.div
-          className="absolute top-5 left-0 hidden h-0.5 bg-accent sm:block"
+          className="absolute top-5 left-0 hidden h-0.5 bg-primary sm:block"
           initial={{ width: 0 }}
           animate={{ width: `${progressPct * 100}%` }}
           transition={{ duration: 0.6, ease: "easeOut" }}
@@ -83,13 +83,13 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
                   {i < STEPS.length - 1 && (
                     <div
                       className={`absolute top-8 left-1/2 h-6 w-0.5 -translate-x-1/2 sm:hidden ${
-                        isComplete ? "bg-accent" : "bg-slate-100"
+                        isComplete ? "bg-primary" : "bg-muted"
                       }`}
                     />
                   )}
                   {isActive && (
                     <motion.span
-                      className="absolute inset-0 rounded-full bg-accent/20"
+                      className="absolute inset-0 rounded-full bg-primary/20"
                       animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }}
                       transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
                     />
@@ -97,8 +97,8 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
                   <motion.div
                     initial={false}
                     animate={{
-                      backgroundColor: isComplete ? "var(--color-accent)" : isActive ? "var(--color-accent)" : "#ffffff",
-                      borderColor: isComplete || isActive ? "var(--color-accent)" : "var(--color-slate-300, #cbd5e1)",
+                      backgroundColor: isComplete ? "var(--color-primary)" : isActive ? "var(--color-primary)" : "var(--color-card)",
+                      borderColor: isComplete || isActive ? "var(--color-primary)" : "var(--color-border)",
                     }}
                     className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 sm:h-10 sm:w-10"
                   >
@@ -122,19 +122,19 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
                     ) : isActive ? (
                       <span className="h-2.5 w-2.5 rounded-full bg-white" />
                     ) : (
-                      <span className="data-mono text-xs text-slate-400">{i + 1}</span>
+                      <span className="data-mono text-xs text-muted-foreground">{i + 1}</span>
                     )}
                   </motion.div>
                 </div>
                 <div className="sm:mt-1">
                   <p
                     className={`text-sm font-medium ${
-                      isActive || isComplete ? "text-ink-900" : "text-slate-400"
+                      isActive || isComplete ? "text-foreground" : "text-muted-foreground"
                     }`}
                   >
                     {step.label}
                   </p>
-                  <p className="text-xs text-slate-400">{step.detail}</p>
+                  <p className="text-xs text-muted-foreground">{step.detail}</p>
                 </div>
               </div>
             );
@@ -189,8 +189,8 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
     <Card tone="subtle" padding="sm" className="px-4 py-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="data-mono mt-1 text-lg font-semibold text-ink-900">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="data-mono mt-1 text-lg font-semibold text-foreground">{value}</p>
     </Card>
   );
 }
@@ -208,15 +208,15 @@ function ProgressBar({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-xs text-slate-500">
+      <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
         <span>{label}</span>
         <span className="data-mono">
           {value} / {total}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <motion.div
-          className="h-full rounded-full bg-accent"
+          className="h-full rounded-full bg-primary"
           initial={{ width: 0 }}
           animate={{ width: `${fraction * 100}%` }}
           transition={{ duration: 0.6, ease: "easeOut" }}

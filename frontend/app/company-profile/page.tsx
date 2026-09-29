@@ -1,11 +1,11 @@
 "use client";
 
+import { Building2, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import CompanyProfileForm from "@/components/CompanyProfileForm";
-import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
-import { BuildingIcon, PlusIcon } from "@/components/ui/icons";
 import { ApiError, listCompanyProfiles } from "@/lib/api";
 import type { CompanyProfileResponse } from "@/lib/types";
 
@@ -40,39 +40,39 @@ function CompanyProfileManager() {
 
   return (
     <div>
-      <PageHeader title="Company profile" subtitle="Used to score Go/No-Go eligibility against each tender." />
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr]">
-        <Card padding="sm" className="h-fit">
+      <PageHeader
+        eyebrow="ORGANISATION / ELIGIBILITY"
+        title="Company profiles"
+        subtitle="The credentials behind every Go/No-Go assessment."
+      />
+      <div className="mx-auto grid max-w-305 gap-8 px-5 py-10 md:grid-cols-[235px_minmax(0,1fr)] md:px-8">
+        <aside>
+          <p className="eyebrow mb-4">YOUR PROFILES</p>
           {error && <p className="mb-3 text-sm text-severity-high">{error}</p>}
-          <ul className="space-y-1">
+          <div className="border-y border-border">
             {profiles.map((profile) => (
-              <li key={profile.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(profile.id)}
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium ${
-                    selectedId === profile.id
-                      ? "bg-accent/10 text-accent"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <BuildingIcon className="h-4 w-4 flex-none" />
-                  <span className="truncate">{profile.company_name}</span>
-                </button>
-              </li>
+              <Button
+                key={profile.id}
+                variant="ghost"
+                onClick={() => setSelectedId(profile.id)}
+                className={`my-1 w-full justify-start overflow-hidden text-left ${
+                  selectedId === profile.id ? "bg-accent text-primary" : ""
+                }`}
+                icon={<Building2 className="h-4 w-4 shrink-0" />}
+              >
+                <span className="truncate">{profile.company_name}</span>
+              </Button>
             ))}
-          </ul>
-          <button
-            type="button"
+          </div>
+          <Button
+            variant="outline"
+            className="mt-4 w-full justify-start"
             onClick={() => setSelectedId("new")}
-            className={`mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium ${
-              selectedId === "new" ? "bg-accent/10 text-accent" : "text-slate-500 hover:bg-slate-100"
-            }`}
+            icon={<Plus className="h-4 w-4" />}
           >
-            <PlusIcon className="h-4 w-4 flex-none" />
             New profile
-          </button>
-        </Card>
+          </Button>
+        </aside>
 
         <CompanyProfileForm
           key={selectedId ?? "new"}

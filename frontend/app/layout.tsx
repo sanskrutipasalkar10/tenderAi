@@ -1,13 +1,18 @@
 import { MotionConfig } from "framer-motion";
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Manrope, Sora } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 
-// Manrope — a precise geometric-humanist grotesk (see DESIGN.md's ContraVault-inspired
-// revision): tighter letterforms and a genuine medium weight read as more
-// "engineering-grade" at large heading sizes than IBM Plex Sans's more mechanical
-// forms. IBM Plex Mono stays reserved for verifiable data (DESIGN.md's original,
-// still-load-bearing distinction).
+// DM Sans (body/UI) + Manrope (font-display, headings) — the unified pair pulled from
+// sanskrutipasalkar10/bid-analysis-studio (docs/DESIGN.md Revision 5), applied
+// app-wide. IBM Plex Mono stays reserved for verifiable data (DESIGN.md's original,
+// still-load-bearing distinction, unchanged across every revision).
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin"],
@@ -20,16 +25,6 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
-// Sora — the display face for the pulled landing/login design (docs/DESIGN.md
-// Revision 4), used only on "/" and "/login" via the font-display utility. Loaded
-// site-wide here (next/font, not a <link> tag, to avoid CLS) but harmless elsewhere
-// since no other page references font-display.
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
 export const metadata: Metadata = {
   title: "Tender AI Platform",
   description:
@@ -38,7 +33,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${manrope.variable} ${plexMono.variable} ${sora.variable} h-full`}>
+    <html lang="en" className={`${dmSans.variable} ${manrope.variable} ${plexMono.variable} h-full`}>
       <body className="min-h-full antialiased">
         {/* Respects the OS-level "reduce motion" accessibility setting automatically —
             framer-motion does not do this on its own. */}

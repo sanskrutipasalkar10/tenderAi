@@ -106,94 +106,98 @@ function DocumentDetail({ documentId }: { documentId: string }) {
   return (
     <div>
       <PageHeader
+        eyebrow="TENDER / REVIEW"
         title="Tender analysis"
         onBack={() => router.back()}
+        backLabel="All tenders"
         badge={status && <StatusBadge status={status.status} />}
         meta={
           status && (
-            <span className="data-mono text-xs text-slate-400">
+            <span className="data-mono text-xs text-muted-foreground">
               {status.pages_processed}/{status.total_pages ?? "?"} pages processed
             </span>
           )
         }
       />
 
-      {error && (
-        <p className="mb-6 rounded-md border border-severity-high/30 bg-severity-high/5 px-4 py-3 text-sm text-severity-high">
-          {error}
-        </p>
-      )}
-
-      <AnimatePresence mode="wait">
-        {isProcessing && status && (
-          <motion.div
-            key="pipeline"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
-          >
-            <ProcessingPipeline status={status} />
-            <p className="mt-4 mb-4 text-sm text-slate-500">
-              This can take a while for a large tender — completeness matters more than speed
-              here. You can navigate away; processing continues in the background, and this page
-              will pick up right where it left off.
-            </p>
-            <ProcessingLog status={status} />
-          </motion.div>
+      <div className="mx-auto max-w-305 px-5 py-9 md:px-8">
+        {error && (
+          <p className="mb-6 rounded-md border border-severity-high/30 bg-severity-high/5 px-4 py-3 text-sm text-severity-high">
+            {error}
+          </p>
         )}
 
-        {status?.status === "ready" && (
-          <motion.div
-            key="results"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="mb-8">
-              <Tabs items={TAB_ITEMS} active={activeTab} onChange={setActiveTab} />
-            </div>
+        <AnimatePresence mode="wait">
+          {isProcessing && status && (
+            <motion.div
+              key="pipeline"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ProcessingPipeline status={status} />
+              <p className="mt-4 mb-4 text-sm text-muted-foreground">
+                This can take a while for a large tender — completeness matters more than speed
+                here. You can navigate away; processing continues in the background, and this page
+                will pick up right where it left off.
+              </p>
+              <ProcessingLog status={status} />
+            </motion.div>
+          )}
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {!activeResult && (
-                  <p className="text-sm text-slate-500">
-                    No {TABS.find((t) => t.module === activeTab)?.label} analysis available yet
-                    for this document.
-                  </p>
-                )}
-                {activeResult && activeTab === "go_no_go" && (
-                  <GoNoGoCard documentId={documentId} result={activeResult.result as GoNoGoResult} />
-                )}
-                {activeResult && activeTab === "synopsis" && (
-                  <SynopsisView
-                    documentId={documentId}
-                    result={activeResult.result as SynopsisResult}
-                    goNoGoResult={goNoGoAnalysis ? (goNoGoAnalysis.result as GoNoGoResult) : null}
-                  />
-                )}
-                {activeResult && activeTab === "company_checklist" && (
-                  <CompanyChecklistView
-                    documentId={documentId}
-                    goNoGoResult={activeResult.result as GoNoGoResult}
-                  />
-                )}
-                {activeResult && activeTab === "risk_finder" && (
-                  <RiskList
-                    documentId={documentId}
-                    result={activeResult.result as RiskFinderResult}
-                  />
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {status?.status === "ready" && (
+            <motion.div
+              key="results"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <div className="mb-8">
+                <Tabs items={TAB_ITEMS} active={activeTab} onChange={setActiveTab} />
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {!activeResult && (
+                    <p className="text-sm text-muted-foreground">
+                      No {TABS.find((t) => t.module === activeTab)?.label} analysis available yet
+                      for this document.
+                    </p>
+                  )}
+                  {activeResult && activeTab === "go_no_go" && (
+                    <GoNoGoCard documentId={documentId} result={activeResult.result as GoNoGoResult} />
+                  )}
+                  {activeResult && activeTab === "synopsis" && (
+                    <SynopsisView
+                      documentId={documentId}
+                      result={activeResult.result as SynopsisResult}
+                      goNoGoResult={goNoGoAnalysis ? (goNoGoAnalysis.result as GoNoGoResult) : null}
+                    />
+                  )}
+                  {activeResult && activeTab === "company_checklist" && (
+                    <CompanyChecklistView
+                      documentId={documentId}
+                      goNoGoResult={activeResult.result as GoNoGoResult}
+                    />
+                  )}
+                  {activeResult && activeTab === "risk_finder" && (
+                    <RiskList
+                      documentId={documentId}
+                      result={activeResult.result as RiskFinderResult}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

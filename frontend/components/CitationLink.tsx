@@ -28,11 +28,11 @@ export default function CitationLink({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex cursor-pointer items-start gap-1.5 rounded text-left text-accent decoration-accent/40 decoration-dotted underline-offset-2 hover:underline"
+        className="group inline-flex cursor-pointer items-start gap-1.5 rounded text-left text-primary decoration-primary/40 decoration-dotted underline-offset-2 hover:underline"
         title={`View source — page ${pageRef}`}
       >
         {children}
-        <span className="data-mono mt-0.5 inline-flex flex-none items-center rounded border border-accent/30 bg-accent/5 px-1.5 py-0.5 text-[11px] font-semibold text-accent group-hover:bg-accent/10">
+        <span className="data-mono mt-0.5 inline-flex flex-none items-center rounded border border-primary/30 bg-primary/5 px-1.5 py-0.5 text-[11px] font-semibold text-primary group-hover:bg-accent">
           p.{pageRef}
         </span>
       </button>
@@ -100,10 +100,10 @@ function PageViewerModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-ink-900">
+          <h2 className="text-lg font-semibold text-foreground">
             Source — <span className="data-mono">page {pageRef}</span>
             {page?.source_url && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+              <span className="ml-2 inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-primary">
                 linked document
               </span>
             )}
@@ -111,7 +111,7 @@ function PageViewerModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-muted-foreground"
             aria-label="Close"
           >
             <CloseIcon className="h-4 w-4" />
@@ -120,25 +120,25 @@ function PageViewerModal({
 
         {error && <p className="text-sm text-severity-high">{error}</p>}
 
-        {!error && !page && <p className="text-sm text-slate-500">Loading…</p>}
+        {!error && !page && <p className="text-sm text-muted-foreground">Loading…</p>}
 
         {page && (
           <div className="space-y-4">
             {page.source_url && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 This page came from a hyperlink inside the uploaded document, not the
                 document itself —{" "}
                 <a
                   href={page.source_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="break-all text-accent underline decoration-accent/40 decoration-dotted underline-offset-2 hover:decoration-solid"
+                  className="break-all text-primary underline decoration-primary/40 decoration-dotted underline-offset-2 hover:decoration-solid"
                 >
                   {page.source_url}
                 </a>
               </p>
             )}
-            <div className="data-mono flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+            <div className="data-mono flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>Classification: {page.classification}</span>
               {page.extraction_method && <span>Extracted via: {page.extraction_method}</span>}
               {page.confidence_score !== null && (
@@ -153,16 +153,16 @@ function PageViewerModal({
               <img
                 src={imageUrl}
                 alt={`Scanned page ${pageRef}`}
-                className="w-full rounded border border-slate-200"
+                className="w-full rounded border border-border"
               />
             )}
 
             {page.raw_text ? (
-              <pre className="whitespace-pre-wrap rounded bg-slate-50 p-3 font-mono text-sm text-slate-800">
+              <pre className="whitespace-pre-wrap rounded bg-surface p-3 font-mono text-sm text-slate-800">
                 {page.raw_text}
               </pre>
             ) : (
-              !imageUrl && <p className="text-sm text-slate-500">No extracted text for this page.</p>
+              !imageUrl && <p className="text-sm text-muted-foreground">No extracted text for this page.</p>
             )}
           </div>
         )}
