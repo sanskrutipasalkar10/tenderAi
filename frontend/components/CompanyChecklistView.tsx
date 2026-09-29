@@ -5,6 +5,8 @@ import type { GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, SeverityBadge } from "./badges";
+import Card from "./ui/Card";
+import Tabs from "./ui/Tabs";
 import { TQ_FACTOR_WEIGHTS } from "@/lib/tqFactorWeights";
 
 const SUB_TABS = [
@@ -40,21 +42,8 @@ export default function CompanyChecklistView({
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap gap-1 border-b border-slate-200">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setSubTab(tab.id)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              subTab === tab.id
-                ? "border-accent text-accent"
-                : "border-transparent text-slate-500 hover:text-ink-900"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6">
+        <Tabs items={SUB_TABS} active={subTab} onChange={setSubTab} size="sm" />
       </div>
 
       {subTab === "pq" && <PQChecklistTab documentId={documentId} goNoGoResult={goNoGoResult} />}
@@ -74,14 +63,14 @@ function PQChecklistTab({
 }) {
   if (!goNoGoResult.pq_checklist || goNoGoResult.pq_checklist.length === 0) {
     return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <Card className="text-sm text-slate-500">
         Not available — the PQ checklist call didn&apos;t return a result for this document.
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+    <Card padding="sm" className="overflow-x-auto p-0">
       <table className="w-full min-w-180 border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -112,28 +101,30 @@ function PQChecklistTab({
           ))}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }
 
 function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
   if (goNoGoResult.tq_score === null || !goNoGoResult.tq_factor_scores) {
     return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <Card className="text-sm text-slate-500">
         Not available — the TQ scoring call didn&apos;t return a result for this document.
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col items-center gap-6 rounded-md border border-slate-200 bg-white p-8 sm:flex-row sm:items-center sm:justify-center sm:gap-10">
-        <ScoreGauge score={goNoGoResult.tq_score} label="Technical Qualification score" colorClass="stroke-accent" />
-      </div>
+    <div className="space-y-6">
+      <Card padding="lg">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-10">
+          <ScoreGauge score={goNoGoResult.tq_score} label="Technical Qualification score" colorClass="stroke-accent" />
+        </div>
+      </Card>
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">Factor breakdown</h3>
-        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+        <Card padding="sm" className="overflow-x-auto p-0">
           <table className="w-full min-w-100 border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -154,7 +145,7 @@ function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       </div>
     </div>
   );
@@ -168,7 +159,7 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
   );
 
   return (
-    <div className="space-y-4 rounded-md border border-slate-200 bg-white p-6">
+    <Card className="space-y-4">
       <Row label="PQ Gate">
         <span className={pqGatePass ? "font-semibold text-status-go" : "font-semibold text-status-no-go"}>
           {pqGatePass ? "PASS" : "FAIL"}
@@ -204,7 +195,7 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
           {RECOMMENDATION_LABEL[goNoGoResult.decision]}
         </span>
       </Row>
-    </div>
+    </Card>
   );
 }
 
@@ -219,9 +210,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function PartnerPlaceholderTab() {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+    <Card className="text-sm text-slate-500">
       Partner/OEM route assessment isn&apos;t built yet — it needs partner-company
       capability data that doesn&apos;t exist anywhere in this system today. Coming soon.
-    </div>
+    </Card>
   );
 }

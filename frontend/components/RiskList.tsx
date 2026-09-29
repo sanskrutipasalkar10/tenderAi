@@ -4,6 +4,9 @@ import { useState } from "react";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
 import { SeverityBadge } from "./badges";
+import Button from "./ui/Button";
+import Card from "./ui/Card";
+import { ChevronDownIcon } from "./ui/icons";
 import type { RiskFinderResult } from "@/lib/types";
 
 const SEVERITY_RANK: Record<RiskFinderResult["risks"][number]["severity"], number> = {
@@ -31,7 +34,7 @@ export default function RiskList({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col items-center gap-6 rounded-md border border-slate-200 bg-white p-8 sm:flex-row sm:items-center sm:justify-between">
+      <Card padding="lg" className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-10">
           <ScoreGauge
             score={result.risk_score}
@@ -46,32 +49,34 @@ export default function RiskList({
           </div>
         </div>
         <ExportButton documentId={documentId} result={result} />
-      </div>
+      </Card>
 
       {result.risks.length === 0 ? (
         <p className="text-sm text-slate-500">No risks flagged for this document.</p>
       ) : (
         <ul className="space-y-3">
           {sortedRisks.map((risk, i) => (
-            <li key={i} className="rounded-md border border-slate-200 bg-white p-5">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <SeverityBadge severity={risk.severity} />
-                <span className="text-sm font-semibold text-ink-900">{risk.category}</span>
-                {!risk.verified && (
-                  <span
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500"
-                    title="This citation's page could not be re-verified against the source document — shown, not hidden (docs/SPEC.md §7)"
-                  >
-                    unverified
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-slate-600">{risk.clause_summary}</p>
-              <div className="mt-3">
-                <CitationLink documentId={documentId} pageRef={risk.page_ref}>
-                  View source clause
-                </CitationLink>
-              </div>
+            <li key={i}>
+              <Card padding="sm">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <SeverityBadge severity={risk.severity} />
+                  <span className="text-sm font-semibold text-ink-900">{risk.category}</span>
+                  {!risk.verified && (
+                    <span
+                      className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500"
+                      title="This citation's page could not be re-verified against the source document — shown, not hidden (docs/SPEC.md §7)"
+                    >
+                      unverified
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-600">{risk.clause_summary}</p>
+                <div className="mt-3">
+                  <CitationLink documentId={documentId} pageRef={risk.page_ref}>
+                    View source clause
+                  </CitationLink>
+                </div>
+              </Card>
             </li>
           ))}
         </ul>
@@ -112,13 +117,9 @@ function ExportButton({ documentId, result }: { documentId: string; result: Risk
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-ink-900 hover:bg-slate-50"
-      >
-        Export ▾
-      </button>
+      <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)} icon={<ChevronDownIcon className="h-3.5 w-3.5" />}>
+        Export
+      </Button>
       {open && (
         <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
           <button

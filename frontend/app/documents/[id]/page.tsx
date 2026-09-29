@@ -11,6 +11,8 @@ import ProcessingPipeline from "@/components/ProcessingPipeline";
 import RiskList from "@/components/RiskList";
 import SynopsisView from "@/components/SynopsisView";
 import { StatusBadge } from "@/components/badges";
+import PageHeader from "@/components/ui/PageHeader";
+import Tabs from "@/components/ui/Tabs";
 import { ApiError, getAllAnalysis, getDocumentStatus } from "@/lib/api";
 import type {
   AnalysisModule,
@@ -32,6 +34,7 @@ const TABS: { module: UiTab; label: string }[] = [
   { module: "company_checklist", label: "Company Checklist" },
   { module: "risk_finder", label: "Risk Finder" },
 ];
+const TAB_ITEMS = TABS.map((t) => ({ id: t.module, label: t.label }));
 
 const POLL_INTERVAL_MS = 4000;
 const TERMINAL_STATUSES = new Set(["ready", "failed"]);
@@ -102,31 +105,18 @@ function DocumentDetail({ documentId }: { documentId: string }) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 rounded p-1 -ml-1 text-sm font-medium text-slate-500 hover:text-ink-900"
-        >
-          <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-            <path
-              d="M12.5 15L7.5 10L12.5 5"
-              stroke="currentColor"
-              strokeWidth={1.75}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Back
-        </button>
-        <h1 className="text-2xl font-semibold text-ink-900">Tender analysis</h1>
-        {status && <StatusBadge status={status.status} />}
-        {status && (
-          <span className="data-mono text-xs text-slate-400">
-            {status.pages_processed}/{status.total_pages ?? "?"} pages processed
-          </span>
-        )}
-      </div>
+      <PageHeader
+        title="Tender analysis"
+        onBack={() => router.back()}
+        badge={status && <StatusBadge status={status.status} />}
+        meta={
+          status && (
+            <span className="data-mono text-xs text-slate-400">
+              {status.pages_processed}/{status.total_pages ?? "?"} pages processed
+            </span>
+          )
+        }
+      />
 
       {error && (
         <p className="mb-6 rounded-md border border-severity-high/30 bg-severity-high/5 px-4 py-3 text-sm text-severity-high">
@@ -160,21 +150,8 @@ function DocumentDetail({ documentId }: { documentId: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <div className="mb-8 flex gap-1 border-b border-slate-200">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.module}
-                  type="button"
-                  onClick={() => setActiveTab(tab.module)}
-                  className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                    activeTab === tab.module
-                      ? "border-accent text-accent"
-                      : "border-transparent text-slate-500 hover:text-ink-900"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="mb-8">
+              <Tabs items={TAB_ITEMS} active={activeTab} onChange={setActiveTab} />
             </div>
 
             <AnimatePresence mode="wait">

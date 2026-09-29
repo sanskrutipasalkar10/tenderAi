@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Card from "./ui/Card";
 import type { DocumentStatus, DocumentStatusResponse } from "@/lib/types";
 
 interface StepDef {
@@ -46,13 +47,13 @@ function stepIndexForStatus(status: DocumentStatus): number {
 export default function ProcessingPipeline({ status }: { status: DocumentStatusResponse }) {
   if (status.status === "failed") {
     return (
-      <div className="rounded-md border border-severity-high/30 bg-severity-high/5 p-6">
+      <Card tone="danger">
         <p className="text-sm font-semibold text-severity-high">Processing failed</p>
         <p className="mt-1 text-sm text-slate-600">
           Something went wrong while processing this document. Try re-uploading it, or contact
           support if the problem persists.
         </p>
-      </div>
+      </Card>
     );
   }
 
@@ -63,7 +64,7 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
   const moduleProgress = status.modules_ready.length / 3;
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-6 sm:p-8">
+    <Card padding="lg">
       <div className="relative">
         <div className="absolute top-5 right-0 left-0 hidden h-0.5 bg-slate-100 sm:block" />
         <motion.div
@@ -181,16 +182,16 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-100 bg-slate-50 px-4 py-3">
+    <Card tone="subtle" padding="sm" className="px-4 py-3">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="data-mono mt-1 text-lg font-semibold text-ink-900">{value}</p>
-    </div>
+    </Card>
   );
 }
 

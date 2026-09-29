@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Card from "./ui/Card";
+import { CloseIcon } from "./ui/icons";
 import { ApiError, getPageContent, getPageImageBlob } from "@/lib/api";
 import type { PageContentResponse } from "@/lib/types";
 
@@ -92,8 +94,9 @@ function PageViewerModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >
-      <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-md border border-slate-200 bg-white p-6 shadow-xl"
+      <Card
+        padding="lg"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -108,10 +111,10 @@ function PageViewerModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             aria-label="Close"
           >
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -163,7 +166,7 @@ function PageViewerModal({
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 

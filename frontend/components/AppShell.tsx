@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import AuthGuard from "./AuthGuard";
+import Button from "./ui/Button";
+import { LogOutIcon, UploadIcon } from "./ui/icons";
 import { clearToken } from "@/lib/auth";
 
 const NAV_LINKS = [
@@ -38,15 +40,15 @@ function TopBar() {
             </span>
             <span>Tender AI Platform</span>
           </Link>
-          <nav className="flex items-center gap-4 sm:gap-6">
+          <nav className="flex items-center gap-1 sm:gap-2">
             {NAV_LINKS.map((link) => {
               const active = pathname === link.href || pathname.startsWith(link.href + "/");
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium ${
-                    active ? "text-accent" : "text-slate-500 hover:text-ink-900"
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    active ? "bg-accent/10 text-accent" : "text-slate-500 hover:text-ink-900"
                   }`}
                 >
                   {link.label}
@@ -56,22 +58,21 @@ function TopBar() {
           </nav>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href="/upload"
-            className="rounded-md bg-ink-950 px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-ink-900"
-          >
+          <Button href="/upload" variant="dark" size="sm" icon={<UploadIcon className="h-4 w-4" />}>
             Upload tender
-          </Link>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-0!"
             onClick={() => {
               clearToken();
               router.push("/login");
             }}
-            className="text-sm whitespace-nowrap text-slate-500 hover:text-ink-900"
+            icon={<LogOutIcon className="h-4 w-4" />}
           >
             Log out
-          </button>
+          </Button>
         </div>
       </div>
     </header>

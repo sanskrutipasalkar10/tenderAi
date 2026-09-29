@@ -6,6 +6,9 @@ import type { GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, DecisionBadge } from "./badges";
+import Button from "./ui/Button";
+import Card from "./ui/Card";
+import Tabs from "./ui/Tabs";
 
 const GAUGE_COLOR: Record<GoNoGoResult["decision"], string> = {
   Go: "stroke-status-go",
@@ -96,46 +99,60 @@ export default function GoNoGoCard({
 
   return (
     <div>
-      <div className="mb-6 flex gap-1 border-b border-slate-200">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setSubTab(tab.id)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              subTab === tab.id
-                ? "border-accent text-accent"
-                : "border-transparent text-slate-500 hover:text-ink-900"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6">
+        <Tabs items={SUB_TABS} active={subTab} onChange={setSubTab} size="sm" />
       </div>
 
       {subTab === "overview" && (
-        <div className="space-y-8">
-          <div className="flex flex-col items-center gap-6 rounded-md border border-slate-200 bg-white p-8 sm:flex-row sm:items-center sm:justify-center sm:gap-10">
-            <ScoreGauge score={result.score} label="Go/No-Go score" colorClass={GAUGE_COLOR[result.decision]} />
-            <div className="flex flex-col items-center gap-2 sm:items-start">
-              <DecisionBadge decision={result.decision} />
-              <p className="max-w-md text-center text-sm text-slate-500 sm:text-left">
-                {buildJustification(result)}
-              </p>
+        <div className="space-y-6">
+          <Card padding="lg">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-10">
+              <ScoreGauge score={result.score} label="Go/No-Go score" colorClass={GAUGE_COLOR[result.decision]} />
+              <div className="flex flex-col items-center gap-2 sm:items-start">
+                <DecisionBadge decision={result.decision} />
+                <p className="max-w-md text-center text-sm text-slate-500 sm:text-left">
+                  {buildJustification(result)}
+                </p>
+              </div>
             </div>
-          </div>
+          </Card>
+
+          {result.factor_scores && (
+            <Card>
+              <h3 className="mb-4 text-sm font-semibold text-ink-900">Decision factors</h3>
+              <div className="space-y-2.5">
+                {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => {
+                  const score = result.factor_scores?.[factor] ?? 0;
+                  return (
+                    <div key={factor} className="flex items-center gap-3">
+                      <span className="w-44 flex-none truncate text-xs text-slate-500">{factor}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-accent"
+                          style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+                        />
+                      </div>
+                      <span className="data-mono w-24 flex-none whitespace-nowrap text-right text-xs text-slate-500">
+                        {score}
+                        <span className="text-slate-300"> · {weight}%</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           {result.gaps.length > 0 && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-ink-900">Gaps &amp; blockers</h3>
               <ul className="space-y-2">
                 {result.gaps.map((gap) => (
-                  <li
-                    key={gap}
-                    className="flex items-start gap-3 rounded-md border border-severity-high/30 bg-severity-high/5 px-4 py-3 text-sm text-ink-900"
-                  >
-                    <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-severity-high" />
-                    {gap}
+                  <li key={gap}>
+                    <Card tone="danger" padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
+                      <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-severity-high" />
+                      {gap}
+                    </Card>
                   </li>
                 ))}
               </ul>
@@ -143,21 +160,23 @@ export default function GoNoGoCard({
           )}
 
           {canResubmit && (
-            <div className="flex flex-col items-start gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <Card className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-500">
                 {hasReview
                   ? "The score above still reflects the model's original judgment. Resubmit to re-score it against the criteria you've reviewed."
                   : "Review at least one criterion in the Details tab before resubmitting — resubmitting re-scores against reviewed criteria only."}
               </p>
-              <button
-                type="button"
-                disabled={!hasReview || resubmitting}
+              <Button
+                variant="dark"
+                size="xs"
+                disabled={!hasReview}
+                loading={resubmitting}
                 onClick={handleResubmit}
-                className="flex-none rounded bg-ink-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex-none"
               >
-                {resubmitting ? "Resubmitting…" : "Resubmit analysis"}
-              </button>
-            </div>
+                Resubmit analysis
+              </Button>
+            </Card>
           )}
           {resubmitError && (
             <p className="text-sm text-severity-high">{resubmitError}</p>
@@ -170,7 +189,7 @@ export default function GoNoGoCard({
           {result.factor_scores && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-ink-900">Factor breakdown</h3>
-              <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+              <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-100 border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -191,14 +210,14 @@ export default function GoNoGoCard({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             </div>
           )}
 
           {eligibility.length > 0 && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-ink-900">Eligibility criteria</h3>
-              <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+              <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-160 border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -233,7 +252,7 @@ export default function GoNoGoCard({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             </div>
           )}
 
@@ -242,14 +261,13 @@ export default function GoNoGoCard({
               <h3 className="mb-3 text-sm font-semibold text-ink-900">Recommended next steps</h3>
               <ul className="space-y-2">
                 {result.next_steps.map((step, i) => (
-                  <li
-                    key={step}
-                    className="flex items-start gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-ink-900"
-                  >
-                    <span className="data-mono mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border border-slate-300 text-[11px] text-slate-400">
-                      {i + 1}
-                    </span>
-                    {step}
+                  <li key={step}>
+                    <Card padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
+                      <span className="data-mono mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border border-slate-300 text-[11px] text-slate-400">
+                        {i + 1}
+                      </span>
+                      {step}
+                    </Card>
                   </li>
                 ))}
               </ul>
@@ -296,13 +314,9 @@ function CriterionReview({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-1 text-xs font-medium text-accent hover:underline"
-      >
+      <Button variant="ghost" size="xs" className="mt-1 px-0! text-accent hover:text-indigo-700" onClick={() => setOpen(true)}>
         Review
-      </button>
+      </Button>
     );
   }
 
@@ -316,30 +330,15 @@ function CriterionReview({
         className="w-full rounded border border-slate-300 px-2 py-1 text-xs text-ink-900 focus:border-accent focus:outline-none"
       />
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => submit("pass")}
-          className="rounded bg-status-go px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
-        >
+        <Button variant="success" size="xs" disabled={submitting} onClick={() => submit("pass")}>
           Mark eligible
-        </button>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => submit("fail")}
-          className="rounded bg-status-no-go px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
-        >
+        </Button>
+        <Button variant="destructive" size="xs" disabled={submitting} onClick={() => submit("fail")}>
           Mark not eligible
-        </button>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => setOpen(false)}
-          className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600"
-        >
+        </Button>
+        <Button variant="outline" size="xs" disabled={submitting} onClick={() => setOpen(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

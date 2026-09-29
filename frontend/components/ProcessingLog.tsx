@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import Card from "./ui/Card";
 import type { DocumentStatusResponse } from "@/lib/types";
 
 interface LogLine {
@@ -87,7 +88,7 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
   }, [lines]);
 
   return (
-    <div className="rounded-md border border-slate-200 bg-ink-950">
+    <Card tone="dark" padding="sm" className="p-0">
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
         <span className="h-2 w-2 rounded-full bg-status-go" />
         <span className="data-mono text-xs font-medium text-slate-300">Processing log</span>
@@ -111,7 +112,7 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
           <p className="data-mono text-xs text-slate-500">Waiting for the first update…</p>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 

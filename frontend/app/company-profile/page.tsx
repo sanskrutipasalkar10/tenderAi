@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import CompanyProfileForm from "@/components/CompanyProfileForm";
+import Card from "@/components/ui/Card";
+import PageHeader from "@/components/ui/PageHeader";
+import { BuildingIcon, PlusIcon } from "@/components/ui/icons";
 import { ApiError, listCompanyProfiles } from "@/lib/api";
 import type { CompanyProfileResponse } from "@/lib/types";
 
@@ -37,9 +40,9 @@ function CompanyProfileManager() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-ink-900">Company profile</h1>
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
-        <div>
+      <PageHeader title="Company profile" subtitle="Used to score Go/No-Go eligibility against each tender." />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr]">
+        <Card padding="sm" className="h-fit">
           {error && <p className="mb-3 text-sm text-severity-high">{error}</p>}
           <ul className="space-y-1">
             {profiles.map((profile) => (
@@ -47,13 +50,14 @@ function CompanyProfileManager() {
                 <button
                   type="button"
                   onClick={() => setSelectedId(profile.id)}
-                  className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium ${
                     selectedId === profile.id
                       ? "bg-accent/10 text-accent"
                       : "text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  {profile.company_name}
+                  <BuildingIcon className="h-4 w-4 flex-none" />
+                  <span className="truncate">{profile.company_name}</span>
                 </button>
               </li>
             ))}
@@ -61,24 +65,23 @@ function CompanyProfileManager() {
           <button
             type="button"
             onClick={() => setSelectedId("new")}
-            className={`mt-2 w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
+            className={`mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium ${
               selectedId === "new" ? "bg-accent/10 text-accent" : "text-slate-500 hover:bg-slate-100"
             }`}
           >
-            + New profile
+            <PlusIcon className="h-4 w-4 flex-none" />
+            New profile
           </button>
-        </div>
+        </Card>
 
-        <div className="rounded-md border border-slate-200 bg-white p-6">
-          <CompanyProfileForm
-            key={selectedId ?? "new"}
-            existing={selected}
-            onSaved={() => {
-              setSelectedId(null);
-              refresh();
-            }}
-          />
-        </div>
+        <CompanyProfileForm
+          key={selectedId ?? "new"}
+          existing={selected}
+          onSaved={() => {
+            setSelectedId(null);
+            refresh();
+          }}
+        />
       </div>
     </div>
   );

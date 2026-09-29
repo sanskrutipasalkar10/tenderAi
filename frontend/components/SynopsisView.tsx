@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import CitationLink from "./CitationLink";
+import Card from "./ui/Card";
+import Tabs from "./ui/Tabs";
+import { ChevronDownIcon } from "./ui/icons";
 import type { GoNoGoResult, SynopsisResult } from "@/lib/types";
 
 const CONFIDENCE_STYLES: Record<SynopsisResult["confidence"], string> = {
@@ -41,26 +44,13 @@ export default function SynopsisView({
 
   return (
     <div>
-      <div className="mb-6 flex gap-1 border-b border-slate-200">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setSubTab(tab.id)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              subTab === tab.id
-                ? "border-accent text-accent"
-                : "border-transparent text-slate-500 hover:text-ink-900"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6">
+        <Tabs items={SUB_TABS} active={subTab} onChange={setSubTab} size="sm" />
       </div>
 
       {subTab === "summary" && (
         <div className="space-y-6">
-          <div className="rounded-md border border-slate-200 bg-white p-6">
+          <Card>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 {titleMissing ? (
@@ -80,7 +70,7 @@ export default function SynopsisView({
                 {result.confidence} confidence
               </span>
             </div>
-          </div>
+          </Card>
 
           <div className="grid gap-4">
             <Section title="Scope of work">{result.scope_summary}</Section>
@@ -89,7 +79,7 @@ export default function SynopsisView({
           </div>
 
           {figureCount > 0 && (
-            <div className="rounded-md border border-slate-200 bg-white">
+            <Card padding="sm" className="p-0">
               <button
                 type="button"
                 onClick={() => setFiguresOpen((open) => !open)}
@@ -99,19 +89,9 @@ export default function SynopsisView({
                   Dates &amp; figures{" "}
                   <span className="font-normal text-slate-400">({figureCount})</span>
                 </span>
-                <svg
-                  viewBox="0 0 20 20"
-                  fill="none"
+                <ChevronDownIcon
                   className={`h-4 w-4 flex-none text-slate-400 transition-transform ${figuresOpen ? "rotate-180" : ""}`}
-                >
-                  <path
-                    d="M5 7.5L10 12.5L15 7.5"
-                    stroke="currentColor"
-                    strokeWidth={1.75}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
               </button>
               {figuresOpen && (
                 <div className="grid gap-6 border-t border-slate-100 p-5 lg:grid-cols-2">
@@ -127,7 +107,7 @@ export default function SynopsisView({
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           )}
         </div>
       )}
@@ -148,9 +128,9 @@ function ChecklistTab({
 }) {
   if (!goNoGoResult) {
     return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <Card className="text-sm text-slate-500">
         Not available yet — the Go/No-Go analysis hasn&apos;t finished processing.
-      </div>
+      </Card>
     );
   }
 
@@ -168,14 +148,13 @@ function ChecklistTab({
           <h3 className="mb-3 text-sm font-semibold text-ink-900">Documents to submit</h3>
           <ul className="space-y-2">
             {documentsRequired.map((doc, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-ink-900"
-              >
-                <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-accent" />
-                <CitationLink documentId={documentId} pageRef={doc.page_ref}>
-                  {doc.description}
-                </CitationLink>
+              <li key={i}>
+                <Card padding="sm" className="flex items-start gap-3 text-sm text-ink-900">
+                  <span className="mt-0.5 h-1.5 w-1.5 flex-none rounded-full bg-accent" />
+                  <CitationLink documentId={documentId} pageRef={doc.page_ref}>
+                    {doc.description}
+                  </CitationLink>
+                </Card>
               </li>
             ))}
           </ul>
@@ -185,7 +164,7 @@ function ChecklistTab({
       {procedural.length > 0 && (
         <div>
           <h3 className="mb-3 text-sm font-semibold text-ink-900">Bid preparation checklist</h3>
-          <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <Card padding="sm" className="overflow-x-auto p-0">
             <table className="w-full min-w-160 border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -208,14 +187,14 @@ function ChecklistTab({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </div>
       )}
 
       {documentsRequired.length === 0 && procedural.length === 0 && (
-        <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <Card className="text-sm text-slate-500">
           No document submission or bid-preparation items were extracted for this tender.
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -223,10 +202,10 @@ function ChecklistTab({
 
 function Section({ title, children }: { title: string; children: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-5">
+    <Card padding="sm">
       <h3 className="mb-2 text-sm font-semibold text-ink-900">{title}</h3>
       <p className="text-sm leading-relaxed text-slate-600">{children}</p>
-    </div>
+    </Card>
   );
 }
 
@@ -240,7 +219,7 @@ function FactTable({
   facts: SynopsisResult["key_dates"];
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-5">
+    <Card padding="sm">
       <h3 className="mb-3 text-sm font-semibold text-ink-900">{title}</h3>
       <dl className="divide-y divide-slate-100">
         {facts.map((fact, i) => (
@@ -256,6 +235,6 @@ function FactTable({
           </div>
         ))}
       </dl>
-    </div>
+    </Card>
   );
 }

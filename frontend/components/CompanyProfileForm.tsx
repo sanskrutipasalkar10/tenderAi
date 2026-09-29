@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { ApiError, createCompanyProfile, updateCompanyProfile } from "@/lib/api";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Field from "@/components/ui/Field";
+import Input from "@/components/ui/Input";
+import { PlusIcon, TrashIcon } from "@/components/ui/icons";
 import type {
   CompanyProfileBankDetails,
   CompanyProfileDirector,
@@ -296,95 +301,105 @@ export default function CompanyProfileForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Company name">
-          <TextInput value={companyName} onChange={setCompanyName} required />
-        </Field>
-        <Field label="Max bidding capacity (%)">
-          <TextInput type="number" value={maxCapacityPct} onChange={setMaxCapacityPct} />
-        </Field>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card>
+        <h3 className="mb-4 text-sm font-semibold text-ink-900">Company basics</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Company name">
+            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+          </Field>
+          <Field label="Max bidding capacity (%)">
+            <Input
+              type="number"
+              value={maxCapacityPct}
+              onChange={(e) => setMaxCapacityPct(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Certifications (comma-separated)">
+            <Input value={certifications} onChange={(e) => setCertifications(e.target.value)} />
+          </Field>
+          <Field label="Geographic presence (states)">
+            <Input value={geographicPresence} onChange={(e) => setGeographicPresence(e.target.value)} />
+          </Field>
+          <Field label="Sectors">
+            <Input value={sectors} onChange={(e) => setSectors(e.target.value)} />
+          </Field>
+        </div>
+      </Card>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Certifications (comma-separated)">
-          <TextInput value={certifications} onChange={setCertifications} />
-        </Field>
-        <Field label="Geographic presence (states)">
-          <TextInput value={geographicPresence} onChange={setGeographicPresence} />
-        </Field>
-        <Field label="Sectors">
-          <TextInput value={sectors} onChange={setSectors} />
-        </Field>
-      </div>
-
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Statutory identity</h3>
+      <Card>
+        <h3 className="mb-4 text-sm font-semibold text-ink-900">Statutory identity</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="CIN">
-            <TextInput value={cin} onChange={setCin} />
+            <Input value={cin} onChange={(e) => setCin(e.target.value)} />
           </Field>
           <Field label="ROC number">
-            <TextInput value={rocNumber} onChange={setRocNumber} />
+            <Input value={rocNumber} onChange={(e) => setRocNumber(e.target.value)} />
           </Field>
           <Field label="Section 8 licence number">
-            <TextInput value={section8LicenceNumber} onChange={setSection8LicenceNumber} />
+            <Input value={section8LicenceNumber} onChange={(e) => setSection8LicenceNumber(e.target.value)} />
           </Field>
-          <Field label="Date of incorporation">
-            <TextInput type="date" value={dateOfIncorporation} onChange={setDateOfIncorporation} />
+          <Field label="Date of incorporation" hint="DD-MM-YYYY">
+            <Input
+              placeholder="DD-MM-YYYY"
+              value={dateOfIncorporation}
+              onChange={(e) => setDateOfIncorporation(e.target.value)}
+            />
           </Field>
           <Field label="PAN">
-            <TextInput value={pan} onChange={setPan} />
+            <Input value={pan} onChange={(e) => setPan(e.target.value)} />
           </Field>
           <Field label="GSTIN">
-            <TextInput value={gstin} onChange={setGstin} />
+            <Input value={gstin} onChange={(e) => setGstin(e.target.value)} />
           </Field>
           <Field label="Udyam registration number">
-            <TextInput value={udyamRegistrationNumber} onChange={setUdyamRegistrationNumber} />
+            <Input value={udyamRegistrationNumber} onChange={(e) => setUdyamRegistrationNumber(e.target.value)} />
           </Field>
           <Field label="NGO Darpan ID">
-            <TextInput value={ngoDarpanId} onChange={setNgoDarpanId} />
+            <Input value={ngoDarpanId} onChange={(e) => setNgoDarpanId(e.target.value)} />
           </Field>
         </div>
-      </div>
+      </Card>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Capital &amp; net worth</h3>
+      <Card>
+        <h3 className="mb-4 text-sm font-semibold text-ink-900">Capital &amp; net worth</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Authorised capital (INR)">
-            <TextInput type="number" value={authorisedCapitalInr} onChange={setAuthorisedCapitalInr} />
+            <Input type="number" value={authorisedCapitalInr} onChange={(e) => setAuthorisedCapitalInr(e.target.value)} />
           </Field>
           <Field label="Paid-up capital (INR)">
-            <TextInput type="number" value={paidUpCapitalInr} onChange={setPaidUpCapitalInr} />
+            <Input type="number" value={paidUpCapitalInr} onChange={(e) => setPaidUpCapitalInr(e.target.value)} />
           </Field>
           <Field label="Net worth (INR)">
-            <TextInput type="number" value={netWorthInr} onChange={setNetWorthInr} />
+            <Input type="number" value={netWorthInr} onChange={(e) => setNetWorthInr(e.target.value)} />
           </Field>
         </div>
-      </div>
+      </Card>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Annual turnover, by year</h3>
-        <p className="mb-2 text-xs text-slate-500">
+      <Card>
+        <h3 className="mb-1 text-sm font-semibold text-ink-900">Annual turnover, by year</h3>
+        <p className="mb-3 text-xs text-slate-500">
           Confirmed turnover only — these figures drive Financial Capability scoring, so a
           source document is required.
         </p>
         <div className="space-y-2">
           {turnoverRows.map((row, i) => (
             <div key={i} className="flex items-center gap-2">
-              <TextInput
+              <Input
                 placeholder="Year, e.g. 2024"
                 value={row.year}
-                onChange={(v) =>
-                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: v } : r)))
+                onChange={(e) =>
+                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
                 }
               />
-              <TextInput
+              <Input
                 type="number"
                 placeholder="Amount (INR)"
                 value={row.amount}
-                onChange={(v) =>
-                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: v } : r)))
+                onChange={(e) =>
+                  setTurnoverRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
                 }
               />
               <RemoveRowButton
@@ -397,44 +412,44 @@ export default function CompanyProfileForm({
           label="Add year"
           onClick={() => setTurnoverRows((rows) => [...rows, { year: "", amount: "" }])}
         />
-        <div className="mt-3 max-w-sm">
+        <div className="mt-4 max-w-sm">
           <Field label="Turnover source (which document these figures came from)">
-            <TextInput
+            <Input
               placeholder="e.g. udyam_filing, audited_financials"
               value={turnoverSource}
-              onChange={setTurnoverSource}
+              onChange={(e) => setTurnoverSource(e.target.value)}
             />
           </Field>
         </div>
-      </div>
+      </Card>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-amber-800">
+      <Card tone="warning">
+        <h3 className="mb-1 text-sm font-semibold text-severity-medium">
           Unconfirmed organizational turnover, by year
         </h3>
-        <p className="mb-2 text-xs text-amber-700">
+        <p className="mb-3 text-xs text-severity-medium/80">
           Retained for reference only — not tied to a confirmed source document for this
           legal entity. Never used for Financial Capability scoring.
         </p>
-        <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
+        <div className="space-y-2">
           {unconfirmedTurnoverRows.map((row, i) => (
             <div key={i} className="flex items-center gap-2">
-              <TextInput
+              <Input
                 placeholder="Year, e.g. 2024_25_projected"
                 value={row.year}
-                onChange={(v) =>
+                onChange={(e) =>
                   setUnconfirmedTurnoverRows((rows) =>
-                    rows.map((r, j) => (j === i ? { ...r, year: v } : r)),
+                    rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)),
                   )
                 }
               />
-              <TextInput
+              <Input
                 type="number"
                 placeholder="Amount (INR)"
                 value={row.amount}
-                onChange={(v) =>
+                onChange={(e) =>
                   setUnconfirmedTurnoverRows((rows) =>
-                    rows.map((r, j) => (j === i ? { ...r, amount: v } : r)),
+                    rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
                   )
                 }
               />
@@ -452,25 +467,25 @@ export default function CompanyProfileForm({
             setUnconfirmedTurnoverRows((rows) => [...rows, { year: "", amount: "" }])
           }
         />
-      </div>
+      </Card>
 
-      <div>
+      <Card>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">MSME classification, by year</h3>
         <div className="space-y-2">
           {msmeRows.map((row, i) => (
             <div key={i} className="flex items-center gap-2">
-              <TextInput
+              <Input
                 placeholder="Year, e.g. 2024-25"
                 value={row.year}
-                onChange={(v) =>
-                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: v } : r)))
+                onChange={(e) =>
+                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
                 }
               />
-              <TextInput
+              <Input
                 placeholder="Type, e.g. Micro"
                 value={row.type}
-                onChange={(v) =>
-                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, type: v } : r)))
+                onChange={(e) =>
+                  setMsmeRows((rows) => rows.map((r, j) => (j === i ? { ...r, type: e.target.value } : r)))
                 }
               />
               <RemoveRowButton onClick={() => setMsmeRows((rows) => rows.filter((_, j) => j !== i))} />
@@ -481,52 +496,52 @@ export default function CompanyProfileForm({
           label="Add year"
           onClick={() => setMsmeRows((rows) => [...rows, { year: "", type: "" }])}
         />
-      </div>
+      </Card>
 
-      <div>
+      <Card>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">Directors</h3>
         <div className="space-y-3">
           {directorRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-200 p-4">
+            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
               <div className="grid gap-2 sm:grid-cols-5">
-                <TextInput
+                <Input
                   placeholder="Name"
                   value={row.name}
-                  onChange={(v) =>
-                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: v } : r)))
+                  onChange={(e) =>
+                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="DIN / PAN"
                   value={row.din_or_pan}
-                  onChange={(v) =>
+                  onChange={(e) =>
                     setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, din_or_pan: v } : r)),
+                      rows.map((r, j) => (j === i ? { ...r, din_or_pan: e.target.value } : r)),
                     )
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Designation"
                   value={row.designation}
-                  onChange={(v) =>
+                  onChange={(e) =>
                     setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, designation: v } : r)),
+                      rows.map((r, j) => (j === i ? { ...r, designation: e.target.value } : r)),
                     )
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Category"
                   value={row.category}
-                  onChange={(v) =>
-                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, category: v } : r)))
+                  onChange={(e) =>
+                    setDirectorRows((rows) => rows.map((r, j) => (j === i ? { ...r, category: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Appointed (date)"
                   value={row.appointed}
-                  onChange={(v) =>
+                  onChange={(e) =>
                     setDirectorRows((rows) =>
-                      rows.map((r, j) => (j === i ? { ...r, appointed: v } : r)),
+                      rows.map((r, j) => (j === i ? { ...r, appointed: e.target.value } : r)),
                     )
                   }
                 />
@@ -547,48 +562,48 @@ export default function CompanyProfileForm({
             ])
           }
         />
-      </div>
+      </Card>
 
-      <div>
+      <Card>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">Government grants</h3>
         <div className="space-y-3">
           {grantRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-200 p-4">
+            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
               <div className="grid gap-2 sm:grid-cols-5">
-                <TextInput
+                <Input
                   placeholder="Department"
                   value={row.department}
-                  onChange={(v) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, department: v } : r)))
+                  onChange={(e) =>
+                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, department: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Source"
                   value={row.source}
-                  onChange={(v) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, source: v } : r)))
+                  onChange={(e) =>
+                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, source: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="FY, e.g. 2023-24"
                   value={row.fy}
-                  onChange={(v) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, fy: v } : r)))
+                  onChange={(e) =>
+                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, fy: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   type="number"
                   placeholder="Amount (INR)"
                   value={row.amount}
-                  onChange={(v) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: v } : r)))
+                  onChange={(e) =>
+                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Purpose"
                   value={row.purpose}
-                  onChange={(v) =>
-                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, purpose: v } : r)))
+                  onChange={(e) =>
+                    setGrantRows((rows) => rows.map((r, j) => (j === i ? { ...r, purpose: e.target.value } : r)))
                   }
                 />
               </div>
@@ -608,79 +623,79 @@ export default function CompanyProfileForm({
             ])
           }
         />
-      </div>
+      </Card>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Bank details</h3>
+      <Card>
+        <h3 className="mb-4 text-sm font-semibold text-ink-900">Bank details</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Bank">
-            <TextInput value={bankName} onChange={setBankName} />
+            <Input value={bankName} onChange={(e) => setBankName(e.target.value)} />
           </Field>
           <Field label="IFSC">
-            <TextInput value={bankIfsc} onChange={setBankIfsc} />
+            <Input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} />
           </Field>
           <Field label="Account number">
-            <TextInput value={bankAccount} onChange={setBankAccount} />
+            <Input value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
           </Field>
         </div>
-      </div>
+      </Card>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Employment count</h3>
+      <Card>
+        <h3 className="mb-4 text-sm font-semibold text-ink-900">Employment count</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Male">
-            <TextInput type="number" value={employeesMale} onChange={setEmployeesMale} />
+            <Input type="number" value={employeesMale} onChange={(e) => setEmployeesMale(e.target.value)} />
           </Field>
           <Field label="Female">
-            <TextInput type="number" value={employeesFemale} onChange={setEmployeesFemale} />
+            <Input type="number" value={employeesFemale} onChange={(e) => setEmployeesFemale(e.target.value)} />
           </Field>
           <Field label="Other">
-            <TextInput type="number" value={employeesOther} onChange={setEmployeesOther} />
+            <Input type="number" value={employeesOther} onChange={(e) => setEmployeesOther(e.target.value)} />
           </Field>
         </div>
-      </div>
+      </Card>
 
-      <div>
+      <Card>
         <h3 className="mb-3 text-sm font-semibold text-ink-900">Past projects</h3>
         <div className="space-y-3">
           {projectRows.map((row, i) => (
-            <div key={i} className="rounded-md border border-slate-200 p-4">
+            <div key={i} className="rounded-md border border-slate-100 bg-slate-50 p-4">
               <div className="grid gap-2 sm:grid-cols-5">
-                <TextInput
+                <Input
                   placeholder="Project name"
                   value={row.name}
-                  onChange={(v) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: v } : r)))
+                  onChange={(e) =>
+                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Client"
                   value={row.client}
-                  onChange={(v) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, client: v } : r)))
+                  onChange={(e) =>
+                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, client: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   type="number"
                   placeholder="Value (INR)"
                   value={row.value}
-                  onChange={(v) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: v } : r)))
+                  onChange={(e) =>
+                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   type="number"
                   placeholder="Year"
                   value={row.year}
-                  onChange={(v) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: v } : r)))
+                  onChange={(e) =>
+                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, year: e.target.value } : r)))
                   }
                 />
-                <TextInput
+                <Input
                   placeholder="Sector"
                   value={row.sector}
-                  onChange={(v) =>
-                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, sector: v } : r)))
+                  onChange={(e) =>
+                    setProjectRows((rows) => rows.map((r, j) => (j === i ? { ...r, sector: e.target.value } : r)))
                   }
                 />
               </div>
@@ -700,75 +715,35 @@ export default function CompanyProfileForm({
             ])
           }
         />
-      </div>
+      </Card>
 
       {error && <p className="text-sm text-severity-high">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-600 disabled:bg-slate-300"
-      >
-        {saving ? "Saving…" : existing ? "Save changes" : "Create profile"}
-      </button>
+      <Button type="submit" loading={saving}>
+        {existing ? "Save changes" : "Create profile"}
+      </Button>
     </form>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1 block text-sm font-medium text-ink-900">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function TextInput({
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-  required,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      required={required}
-      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink-900 focus:border-accent focus:outline-none"
-    />
   );
 }
 
 function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-2 text-sm font-medium text-accent hover:underline"
-    >
-      + {label}
-    </button>
+    <Button variant="ghost" size="xs" className="mt-2 px-0! text-accent hover:text-indigo-700" onClick={onClick} icon={<PlusIcon className="h-3.5 w-3.5" />}>
+      {label}
+    </Button>
   );
 }
 
 function RemoveRowButton({ label, onClick }: { label?: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="xs"
+      className="text-slate-400 hover:text-severity-high"
       onClick={onClick}
-      className="text-sm text-slate-400 hover:text-severity-high"
+      icon={<TrashIcon className="h-3.5 w-3.5" />}
     >
       {label ?? "Remove"}
-    </button>
+    </Button>
   );
 }
