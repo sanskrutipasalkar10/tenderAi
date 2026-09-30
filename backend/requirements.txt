@@ -46,8 +46,12 @@ langfuse==2.57.1
 prometheus-fastapi-instrumentator==7.0.0
 structlog==24.4.0
 
-# Dev / test
-moto[s3]==5.0.28
+# Dev / test — moto[s3] alone covers the @mock_aws decorator tests use (CLAUDE.md hard
+# rule 8), but not `python -m moto.server`, the standalone HTTP mock this project's own
+# README recommends as the no-Docker S3/MinIO substitute for local dev — that needs
+# moto's `server` extra (Flask, flask-cors) too, or it fails at import with
+# "ModuleNotFoundError: No module named 'flask'" the moment you actually try to run it.
+moto[s3,server]==5.0.28
 pytest==8.3.4
 pytest-asyncio==0.25.0
 pytest-cov==6.0.0

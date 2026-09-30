@@ -132,6 +132,25 @@ run `minio server /data` directly.) Then create the bucket named in `.env`
 (`tenders` by default) — easiest via the console at `http://localhost:9001`
 (`minioadmin`/`minioadmin`), or `mc mb local/tenders` if you have the `mc` CLI.
 
+**No Docker and don't want to install MinIO either?** `moto` (already in
+`requirements.txt`, real S3-compatible mock, used for the test suite's `@mock_aws`
+too) can run as a standalone HTTP server:
+```bash
+# venv active, in backend/
+python -m moto.server -p 9000
+```
+Leave it running in its own terminal — same as MinIO, `objects.py` doesn't know or
+care which one it's talking to. It has no console UI, so create the bucket with:
+```bash
+python -c "from app.storage.objects import ensure_bucket_exists; ensure_bucket_exists()"
+```
+Note `moto[s3]` alone (an older lockfile state) is *not* enough to run
+`moto.server` — it fails at import with `ModuleNotFoundError: No module named
+'flask'`. The pinned `moto[s3,server]` in `requirements.txt` covers both; re-run
+`pip install -r requirements.txt` if you hit that error. Also note moto's data is
+in-memory only — restarting it clears the bucket, so re-run the `ensure_bucket_exists`
+line above after every restart.
+
 **Step 2 — Python environment:**
 ```bash
 cd backend
