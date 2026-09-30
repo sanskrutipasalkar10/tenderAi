@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
@@ -11,6 +12,7 @@ import ProcessingPipeline from "@/components/ProcessingPipeline";
 import RiskList from "@/components/RiskList";
 import SynopsisView from "@/components/SynopsisView";
 import { StatusBadge } from "@/components/badges";
+import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
 import Tabs from "@/components/ui/Tabs";
 import { ApiError, getAllAnalysis, getDocumentStatus } from "@/lib/api";
@@ -116,6 +118,17 @@ function DocumentDetail({ documentId }: { documentId: string }) {
             <span className="data-mono text-xs text-muted-foreground">
               {status.pages_processed}/{status.total_pages ?? "?"} pages processed
             </span>
+          )
+        }
+        action={
+          status?.status === "ready" && (
+            <Button
+              href={`/documents/${documentId}/report`}
+              variant="outline"
+              icon={<FileDown className="h-4 w-4" />}
+            >
+              Download report
+            </Button>
           )
         }
       />

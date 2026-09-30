@@ -210,3 +210,15 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* The tender report (app/documents/[id]/report) relies on real badge/severity
+   background colors surviving print — most browsers strip backgrounds on print by
+   default unless told otherwise. Tailwind ships break-before-page etc. as core
+   utilities already; this one rule isn't a utility, so it lives here globally rather
+   than only on the report route. */
+@media print {
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
