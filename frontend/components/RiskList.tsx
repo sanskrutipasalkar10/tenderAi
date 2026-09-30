@@ -94,7 +94,9 @@ function ExportButton({ documentId, result }: { documentId: string; result: Risk
       r.category,
       r.severity,
       r.clause_summary,
-      String(r.page_ref),
+      // +1: page_ref is 0-indexed internally (matches pages.page_number/PyMuPDF) —
+      // shown as the real PDF page number, same convention as CitationLink.tsx.
+      String(r.page_ref + 1),
       r.verified ? "yes" : "no",
     ]);
     const csv = [header, ...rows]
