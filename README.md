@@ -170,17 +170,28 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 **Step 7 — start the Celery worker** (another new terminal, venv active, still in
 `backend/`):
 ```bash
-python -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info
+python -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info -Q default,llm
 ```
 `--pool=solo` is required on Windows (Celery's default prefork pool doesn't work there).
-On macOS/Linux you can drop it and get real concurrency instead. Note: despite
-`celery_app.py`'s own docstring describing a two-queue split (`llm` vs `default`) meant
-to isolate slow LLM-calling tasks from cheap ones, no task actually declares an explicit
-queue yet — everything currently lands on the single `default` queue regardless, so one
-worker with no `-Q` flag picks up all task types correctly. (If you use the
-`docker-compose.yml` two-worker split instead, be aware the `celery-worker-llm`
-container will sit idle for this same reason — a real, pre-existing gap between that
-file's stated intent and the code, not something specific to your setup.)
+On macOS/Linux you can drop it and get real concurrency instead. **The `-Q default,llm`
+is required** — `ingest_document_task` (`tasks_ingest.py`) and `map_pass_chunk_task`
+(`tasks_map.py`) both declare `queue="llm"` (per `celery_app.py`'s docstring: isolate
+slow LLM-calling tasks from cheap ones), and a worker started with no `-Q` flag only
+consumes `task_default_queue` (`"default"`) — it silently never sees anything published
+to `"llm"`, including `ingest_document_task`, the very first task in the pipeline. A
+document uploaded against a worker missing this flag sits at `status="uploaded"`
+forever with no error anywhere: the upload itself succeeds (the task publishes to Redis
+fine), the task just has no consumer. Caught for real running natively on Windows —
+uploads silently never left "uploaded," and the Celery message ended up sitting in
+Redis's `llm` list uninspected because a leftover second `redis-server.exe` process
+happened to be squatting on the same port on the IPv4 stack while the real (Windows
+service) Redis instance — where the actual traffic was going — was IPv6-only, so a bare
+`redis-cli` (which defaults to `127.0.0.1`) silently inspected the wrong, always-empty
+instance. If you ever see this class of symptom again, check for more than one
+process listening on `6379` before assuming the task dispatch itself is broken. This
+native single-worker path is otherwise equivalent to the `docker-compose.yml` two-worker
+split (`celery-worker-llm` with `-Q llm`, `celery-worker-default` with `-Q default`),
+which was already correctly configured and not affected by this gap.
 
 **Verify the backend is up:**
 - `http://localhost:8000/health` — liveness
