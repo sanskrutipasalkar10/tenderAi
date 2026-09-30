@@ -78,9 +78,13 @@ export function listDocuments(): Promise<DocumentUploadResponse[]> {
 export function uploadDocument(
   file: File,
   companyProfileId?: string,
+  attachments: File[] = [],
 ): Promise<DocumentUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  for (const attachment of attachments) {
+    formData.append("attachments", attachment);
+  }
   const query = companyProfileId ? `?company_profile_id=${companyProfileId}` : "";
   return apiFetch(`/documents${query}`, { method: "POST", body: formData });
 }

@@ -59,6 +59,16 @@ def upload_pdf(document_id: uuid.UUID, pdf_bytes: bytes) -> str:
     return key
 
 
+def upload_attachment_pdf(
+    document_id: uuid.UUID, attachment_id: uuid.UUID, pdf_bytes: bytes
+) -> str:
+    key = f"documents/{document_id}/attachments/{attachment_id}/original.pdf"
+    get_s3_client().put_object(
+        Bucket=settings.s3_bucket, Key=key, Body=pdf_bytes, ContentType="application/pdf"
+    )
+    return key
+
+
 def upload_page_image(document_id: uuid.UUID, page_number: int, image_bytes: bytes) -> str:
     key = f"documents/{document_id}/pages/{page_number:05d}.png"
     get_s3_client().put_object(

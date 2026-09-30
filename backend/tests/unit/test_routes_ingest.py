@@ -117,6 +117,75 @@ def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_enqueue, _ov
     mock_enqueue.assert_called_once()
 
 
+# --- supporting-document attachments (docs/DECISIONS.md — migration 0005) -----------
+
+
+def _small_pdf(text: str) -> bytes:
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), text)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    return pdf_bytes
+
+
+def test_upload_rejects_non_pdf_attachment() -> None:
+    response = client.post(
+        "/documents",
+        files={
+            "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
+            "attachments": ("certificate.txt", io.BytesIO(b"hello"), "text/plain"),
+        },
+    )
+    assert response.status_code == 422
+    assert "certificate.txt" in response.json()["message"]
+    assert "PDF" in response.json()["message"]
+
+
+def test_upload_rejects_empty_attachment() -> None:
+    response = client.post(
+        "/documents",
+        files={
+            "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
+            "attachments": ("empty.pdf", io.BytesIO(b""), "application/pdf"),
+        },
+    )
+    assert response.status_code == 422
+    assert "empty" in response.json()["message"].lower()
+
+
+def test_upload_accepts_an_attachment_that_would_fail_the_tender_heuristic() -> None:
+    """A supporting document (a certificate, a past-project reference) legitimately
+    isn't a tender itself and must not be rejected for not looking like one — the
+    user confirmed this scope explicitly, so an attachment goes through
+    validate_attachment (basic PDF sanity), never validate_upload's
+    looks_like_a_tender check.
+    """
+    with (
+        patch("app.api.routes_ingest.enqueue_full_pipeline"),
+        patch("app.api.routes_ingest.upload_pdf", return_value="documents/fake/original.pdf"),
+        patch(
+            "app.api.routes_ingest.upload_attachment_pdf",
+            return_value="documents/fake/attachments/x/original.pdf",
+        ) as mock_upload_attachment,
+    ):
+        response = client.post(
+            "/documents",
+            files={
+                "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
+                "attachments": (
+                    "iso_certificate.pdf",
+                    io.BytesIO(_small_pdf("ISO 9001:2015 Certificate of Registration")),
+                    "application/pdf",
+                ),
+            },
+        )
+
+    assert response.status_code == 201
+    mock_upload_attachment.assert_called_once()
+
+
 def test_status_returns_404_for_unknown_document(_override_db) -> None:
     _override_db.get.return_value = None
     response = client.get(f"/documents/{uuid.uuid4()}/status")

@@ -369,6 +369,10 @@ class DocumentStatusResponse(BaseModel):
     # hyperlinked documents have been found/fetched so far.
     main_document_pages: int = 0
     linked_documents_found: int = 0
+    # How many manually-attached supporting documents (docs/DECISIONS.md — migration
+    # 0005) have had their pages appended so far — same "make what's actually
+    # happening explicit" reasoning as linked_documents_found above.
+    attachments_processed: int = 0
     chunks_total: int = 0
     chunks_mapped: int = 0
     modules_ready: list[AnalysisModule] = Field(default_factory=list)
@@ -405,6 +409,10 @@ class PageContentResponse(BaseModel):
     # PDF rather than the PDF itself (docs/DECISIONS.md) — null for every page of the
     # document actually uploaded.
     source_url: str | None = None
+    # Set when this page's content came from a manually-attached supporting document
+    # rather than the uploaded PDF or a hyperlink (docs/DECISIONS.md) — mutually
+    # exclusive with source_url in practice.
+    attachment_filename: str | None = None
 
 
 # --- company_profiles — CRUD for the reduce pass's go_no_go input (docs/DECISIONS.md

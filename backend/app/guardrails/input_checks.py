@@ -65,12 +65,10 @@ def looks_like_a_tender(doc: fitz.Document) -> bool:
     return any(term in text for term in TENDER_SIGNAL_TERMS)
 
 
-def validate_upload(pdf_bytes: bytes) -> None:
-    """Raises DataQualityError for anything that must never reach the pipeline: a
-    corrupt/unreadable file, zero pages, over the page ceiling (docs/SPEC.md §5), or
-    content that doesn't look like a tender at all (§11's out-of-domain "refuse/flag,
-    never silently proceed" rule). Every rejection is logged — a rejected upload is
-    real signal, either a bad file or the heuristic itself needing a tune.
+def _open_and_check_size(pdf_bytes: bytes) -> fitz.Document:
+    """Corrupt/empty/over-ceiling checks shared by validate_upload (the primary tender
+    PDF) and validate_attachment (a supporting document) — the "is this a tender"
+    content heuristic below is deliberately NOT part of this shared core.
     """
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -78,23 +76,36 @@ def validate_upload(pdf_bytes: bytes) -> None:
         logger.warning("input_checks.upload_rejected", reason="corrupt_or_unreadable_pdf")
         raise DataQualityError("Uploaded file could not be opened as a PDF") from exc
 
+    if doc.page_count == 0:
+        doc.close()
+        logger.warning("input_checks.upload_rejected", reason="zero_pages")
+        raise DataQualityError("Uploaded PDF has no pages")
+
+    if doc.page_count > settings.max_upload_pages:
+        page_count = doc.page_count
+        doc.close()
+        logger.warning(
+            "input_checks.upload_rejected",
+            reason="over_page_ceiling",
+            page_count=page_count,
+            ceiling=settings.max_upload_pages,
+        )
+        raise DataQualityError(
+            f"PDF has {page_count} pages, exceeding the "
+            f"{settings.max_upload_pages}-page upload limit"
+        )
+    return doc
+
+
+def validate_upload(pdf_bytes: bytes) -> None:
+    """Raises DataQualityError for anything that must never reach the pipeline: a
+    corrupt/unreadable file, zero pages, over the page ceiling (docs/SPEC.md §5), or
+    content that doesn't look like a tender at all (§11's out-of-domain "refuse/flag,
+    never silently proceed" rule). Every rejection is logged — a rejected upload is
+    real signal, either a bad file or the heuristic itself needing a tune.
+    """
+    doc = _open_and_check_size(pdf_bytes)
     try:
-        if doc.page_count == 0:
-            logger.warning("input_checks.upload_rejected", reason="zero_pages")
-            raise DataQualityError("Uploaded PDF has no pages")
-
-        if doc.page_count > settings.max_upload_pages:
-            logger.warning(
-                "input_checks.upload_rejected",
-                reason="over_page_ceiling",
-                page_count=doc.page_count,
-                ceiling=settings.max_upload_pages,
-            )
-            raise DataQualityError(
-                f"PDF has {doc.page_count} pages, exceeding the "
-                f"{settings.max_upload_pages}-page upload limit"
-            )
-
         if not looks_like_a_tender(doc):
             logger.warning("input_checks.upload_rejected", reason="does_not_look_like_a_tender")
             raise DataQualityError(
@@ -102,3 +113,13 @@ def validate_upload(pdf_bytes: bytes) -> None:
             )
     finally:
         doc.close()
+
+
+def validate_attachment(pdf_bytes: bytes) -> None:
+    """Supporting-document sanity check (docs/DECISIONS.md) — corrupt/empty/
+    over-ceiling only, deliberately skipping looks_like_a_tender: a supporting
+    document (a certificate, a past-project reference letter) isn't itself a tender
+    and shouldn't be rejected for not looking like one. Confirmed with the user, not
+    assumed.
+    """
+    _open_and_check_size(pdf_bytes).close()

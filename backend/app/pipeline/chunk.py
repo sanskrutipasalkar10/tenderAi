@@ -74,23 +74,25 @@ def plan_chunk_ranges(
 
 def _source_spans(pages: list[Page]) -> list[tuple[int, int]]:
     """Groups `pages` (already ordered by page_number) into (start_page, end_page)
-    spans sharing the same source_url — a run of pages with source_url=None is the
-    uploaded PDF's own pages; each hyperlinked document fetched by
-    app.pipeline.fetch_links forms its own span, appended after (docs/DECISIONS.md).
-    For a document with no linked pages this always returns exactly one span covering
-    every page, identical to treating the whole document as one range.
+    spans sharing the same (source_url, attachment_id) origin — a run of pages with
+    both None is the uploaded PDF's own pages; each hyperlinked document fetched by
+    app.pipeline.fetch_links or each manually-attached supporting document
+    (docs/DECISIONS.md) forms its own span. For a document with no linked or attached
+    pages this always returns exactly one span covering every page, identical to
+    treating the whole document as one range.
     """
     if not pages:
         return []
     spans: list[tuple[int, int]] = []
     span_start = pages[0].page_number
-    current_source = pages[0].source_url
+    current_origin = (pages[0].source_url, pages[0].attachment_id)
     prev_number = pages[0].page_number
     for p in pages[1:]:
-        if p.source_url != current_source:
+        origin = (p.source_url, p.attachment_id)
+        if origin != current_origin:
             spans.append((span_start, prev_number))
             span_start = p.page_number
-            current_source = p.source_url
+            current_origin = origin
         prev_number = p.page_number
     spans.append((span_start, prev_number))
     return spans

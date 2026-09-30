@@ -33,6 +33,22 @@ def _mock_friendly_s3(monkeypatch):
     objects.get_s3_client.cache_clear()
 
 
+class _FakeEmptyQuery:
+    """Stands in for a real query — every test in this file has no attachments
+    (that's test_ingestion_attachments.py's job), so this just returns an empty list
+    regardless of what's filtered/ordered.
+    """
+
+    def filter(self, *_conditions):
+        return self
+
+    def order_by(self, *_args):
+        return self
+
+    def all(self):
+        return []
+
+
 class FakeSession:
     """Records added rows and assigns IDs on add(), mimicking what a real flush would
     do for Page.id, without needing an actual Postgres round-trip.
@@ -47,6 +63,9 @@ class FakeSession:
         if model is Document and pk == self._document.id:
             return self._document
         return None
+
+    def query(self, model):
+        return _FakeEmptyQuery()
 
     def add(self, obj) -> None:
         if isinstance(obj, Page) and obj.id is None:

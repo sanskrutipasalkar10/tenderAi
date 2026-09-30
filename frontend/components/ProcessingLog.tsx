@@ -64,6 +64,9 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
       if (status.linked_documents_found > prev.linked_documents_found) {
         push(`Found and processed linked document ${status.linked_documents_found}`);
       }
+      if (status.attachments_processed > prev.attachments_processed) {
+        push(`Processed supporting document ${status.attachments_processed}`);
+      }
       if (status.chunks_total > 0 && prev.chunks_total === 0) {
         push(`Built ${status.chunks_total} chunk${status.chunks_total === 1 ? "" : "s"} for analysis`);
       }

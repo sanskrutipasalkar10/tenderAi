@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.core.dependencies import get_current_user, get_db
 from app.main import app
+from app.models.document_attachment import DocumentAttachment
 from app.models.page import Page
 
 client = TestClient(app)
@@ -62,6 +63,26 @@ def test_get_page_content_flags_has_image_true_when_image_s3_key_set(_overrides)
     response = client.get(f"/documents/{page.document_id}/pages/3")
 
     assert response.json()["has_image"] is True
+
+
+def test_get_page_content_includes_attachment_filename_when_set(_overrides) -> None:
+    attachment_id = uuid.uuid4()
+    page = _make_page(attachment_id=attachment_id, source_url=None)
+    attachment = DocumentAttachment(
+        id=attachment_id,
+        document_id=page.document_id,
+        filename="iso_certificate.pdf",
+        s3_key="documents/doc-1/attachments/x/original.pdf",
+    )
+    _overrides.query.return_value.filter.return_value.first.return_value = page
+    _overrides.get.return_value = attachment
+
+    response = client.get(f"/documents/{page.document_id}/pages/3")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attachment_filename"] == "iso_certificate.pdf"
+    assert body["source_url"] is None
 
 
 def test_get_page_content_404s_for_a_nonexistent_page(_overrides) -> None:

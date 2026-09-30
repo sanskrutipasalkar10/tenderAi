@@ -13,12 +13,14 @@ Every page produces a `pages` row regardless of extraction outcome — CLAUDE.md
 zero-page-drop invariant: an extraction failure (native finds no text, vision errors
 out) is a low-confidence row, never a missing one.
 
-After the uploaded PDF's own pages, a second stage (docs/DECISIONS.md) walks its
-hyperlinks — real GeM tender cover sheets link out to the actual tender content
-("...AS PER ANNEXURE A ENCLOSED" where Annexure A is a URL, not an attachment) — and
-appends whatever it can fetch as more `pages` rows on the SAME document, continuing the
-page_number sequence. A link that can't be fetched (guardrail rejection, timeout,
-unparseable content) is logged and skipped, never fails the whole ingestion task.
+After the uploaded PDF's own pages, ingestion appends two further kinds of content as
+more `pages` rows on the SAME document, continuing the page_number sequence: any
+manually-attached supporting documents (docs/DECISIONS.md — migration 0005, upload-time
+only), then a hyperlink-walking stage (docs/DECISIONS.md) — real GeM tender cover
+sheets link out to the actual tender content ("...AS PER ANNEXURE A ENCLOSED" where
+Annexure A is a URL, not an attachment) — appending whatever it can fetch. A link that
+can't be fetched (guardrail rejection, timeout, unparseable content) is logged and
+skipped, never fails the whole ingestion task.
 """
 
 import uuid
@@ -29,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.document import Document
+from app.models.document_attachment import DocumentAttachment
 from app.models.extracted_table import ExtractedTable
 from app.models.page import Page
 from app.models.schemas import PageExtractionResult
@@ -69,6 +72,7 @@ def run_ingestion(db: Session, document_id: uuid.UUID) -> Document:
         _process_page(db, document, page.number, page, pdf_bytes, source_url=None)
 
     next_page_number = pdf.page_count
+    next_page_number = _process_attachments(db, document, next_page_number)
     next_page_number = _process_linked_documents(db, document, pdf, next_page_number)
     pdf.close()
 
@@ -116,16 +120,17 @@ def _persist_page(
     result: PageExtractionResult,
     *,
     source_url: str | None,
+    attachment_id: uuid.UUID | None,
     table_source_bytes: bytes | None,
     table_source_page_number: int | None,
 ) -> None:
     """Writes one `pages` row (+ `extracted_tables` row if applicable) and runs the
-    boilerplate dedupe check — shared by both the cover PDF's own pages and every
-    appended linked-document page. `table_source_bytes`/`table_source_page_number` are
-    the PDF bytes and LOCAL page index extract_table_structure needs — for a linked
-    PDF's table page these are that linked PDF's own bytes/index, never the cover
-    PDF's, since extract_table_structure reopens the PDF itself via pdfplumber rather
-    than reusing a fitz.Page handle.
+    boilerplate dedupe check — shared by the cover PDF's own pages, every appended
+    linked-document page, and every appended supporting-attachment page.
+    `table_source_bytes`/`table_source_page_number` are the PDF bytes and LOCAL page
+    index extract_table_structure needs — for a linked/attached PDF's table page these
+    are that PDF's own bytes/index, never the cover PDF's, since extract_table_structure
+    reopens the PDF itself via pdfplumber rather than reusing a fitz.Page handle.
     """
     page_row = Page(
         document_id=document.id,
@@ -136,6 +141,7 @@ def _persist_page(
         content_hash=result.content_hash,
         confidence_score=result.confidence_score,
         source_url=source_url,
+        attachment_id=attachment_id,
     )
     db.add(page_row)
     db.flush()  # populate page_row.id (server-generated) before it's referenced below
@@ -172,9 +178,45 @@ def _process_page(
     _persist_page(
         db, document, page_number, result,
         source_url=source_url,
+        attachment_id=None,
         table_source_bytes=pdf_bytes,
         table_source_page_number=page.number,
     )
+
+
+def _process_attachments(db: Session, document: Document, next_page_number: int) -> int:
+    """Extracts every manually-attached supporting document (docs/DECISIONS.md —
+    migration 0005, upload-time only), appending their pages after the cover PDF's own
+    pages and before any hyperlink-fetched content. Each attachment's pages form their
+    own contiguous span (app.pipeline.chunk._source_spans keys on attachment_id too),
+    so a map-pass chunk never straddles the boundary between the tender and a
+    supporting document. Unlike a hyperlink fetch, an attachment was uploaded by the
+    user directly — there's nothing to fetch or fail here beyond opening the PDF
+    already validated and stored at upload time.
+    """
+    attachments = (
+        db.query(DocumentAttachment)
+        .filter(DocumentAttachment.document_id == document.id)
+        .order_by(DocumentAttachment.created_at)
+        .all()
+    )
+    for attachment in attachments:
+        pdf_bytes = get_object_bytes(attachment.s3_key)
+        attachment_pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            for page in attachment_pdf:
+                result = _classify_and_extract(page)
+                _persist_page(
+                    db, document, next_page_number, result,
+                    source_url=None,
+                    attachment_id=attachment.id,
+                    table_source_bytes=pdf_bytes,
+                    table_source_page_number=page.number,
+                )
+                next_page_number += 1
+        finally:
+            attachment_pdf.close()
+    return next_page_number
 
 
 def _process_linked_documents(
@@ -239,6 +281,7 @@ def _process_linked_documents(
             _persist_page(
                 db, document, next_page_number, result,
                 source_url=ref.url,
+                attachment_id=None,
                 table_source_bytes=table_source_bytes,
                 table_source_page_number=local_index,
             )

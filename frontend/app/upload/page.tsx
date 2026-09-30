@@ -25,11 +25,13 @@ function UploadFlow() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [companyProfileId, setCompanyProfileId] = useState("");
   const [profiles, setProfiles] = useState<CompanyProfileResponse[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentsInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     listCompanyProfiles()
@@ -46,12 +48,28 @@ function UploadFlow() {
     setFile(f);
   }
 
+  function addAttachments(files: FileList | null) {
+    if (!files) return;
+    const picked = Array.from(files);
+    const nonPdf = picked.find((f) => f.type !== "application/pdf");
+    if (nonPdf) {
+      setError("Supporting documents must be PDF files.");
+      return;
+    }
+    setError(null);
+    setAttachments((cur) => [...cur, ...picked]);
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((cur) => cur.filter((_, i) => i !== index));
+  }
+
   async function handleUpload() {
     if (!file) return;
     setUploading(true);
     setError(null);
     try {
-      const doc = await uploadDocument(file, companyProfileId || undefined);
+      const doc = await uploadDocument(file, companyProfileId || undefined, attachments);
       // A real URL, not local component state — landing here means the browser's
       // back/forward buttons and page reloads always re-sync to the backend's actual
       // persisted status (see ProcessingPipeline), instead of an ephemeral "just
@@ -143,10 +161,70 @@ function UploadFlow() {
             </div>
           )}
 
+          <div className="mt-9 border-t border-border pt-7">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="step-number">02</span>
+              <div>
+                <p className="eyebrow">OPTIONAL</p>
+                <h2 className="font-display text-xl font-semibold">Supporting documents</h2>
+              </div>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Attach certificates, past-project references, or clarifications. Every page is
+              read and analyzed alongside the tender, with citations pointing back to it.
+            </p>
+            <input
+              ref={attachmentsInputRef}
+              type="file"
+              accept="application/pdf"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                addAttachments(e.target.files);
+                if (attachmentsInputRef.current) attachmentsInputRef.current.value = "";
+              }}
+              aria-label="Add supporting documents"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => attachmentsInputRef.current?.click()}
+              icon={<UploadCloud className="h-4 w-4" />}
+            >
+              Add supporting documents
+            </Button>
+            {attachments.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {attachments.map((attachment, index) => (
+                  <li
+                    key={`${attachment.name}-${index}`}
+                    className="flex items-center gap-3 border border-border bg-background p-3"
+                  >
+                    <FileText size={20} className="shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{attachment.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(attachment.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${attachment.name}`}
+                      onClick={() => removeAttachment(index)}
+                      className="rounded-md p-1.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {profiles.length > 0 && (
             <div className="mt-9 border-t border-border pt-7">
               <div className="mb-4 flex items-center gap-3">
-                <span className="step-number">02</span>
+                <span className="step-number">03</span>
                 <div>
                   <p className="eyebrow">ELIGIBILITY CONTEXT</p>
                   <h2 className="font-display text-xl font-semibold">Company profile</h2>

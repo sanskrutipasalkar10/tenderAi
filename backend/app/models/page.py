@@ -52,4 +52,12 @@ class Page(Base):
     # sheets link out to the real tender content). Additive, nullable — every existing
     # page stays NULL/unchanged.
     source_url: Mapped[str | None] = mapped_column(Text)
+    # NULL for a page from the uploaded PDF itself or a hyperlink-fetched page (those
+    # use source_url above); set to the originating row for a page that came from a
+    # manually-attached supporting document (migration 0005, docs/DECISIONS.md) — a
+    # separate column rather than reusing source_url, since an attachment has no real
+    # URL to point to.
+    attachment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("document_attachments.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

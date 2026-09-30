@@ -224,6 +224,53 @@ def test_source_spans_splits_on_source_url_change() -> None:
     assert _source_spans(pages) == [(0, 2), (3, 4), (5, 8)]
 
 
+def _make_attachment_page(document_id, page_number, attachment_id, raw_text) -> Page:
+    page = _make_linked_page(document_id, page_number, None, raw_text)
+    page.attachment_id = attachment_id
+    return page
+
+
+def test_source_spans_splits_on_attachment_change() -> None:
+    """A manually-attached supporting document (docs/DECISIONS.md — migration 0005)
+    must form its own span too, exactly like a hyperlinked document does — otherwise
+    a map-pass chunk could straddle the boundary between the tender and an attachment
+    with no signal to the model that it crossed a document boundary.
+    """
+    from app.pipeline.chunk import _source_spans
+
+    document_id = uuid.uuid4()
+    attachment_id = uuid.uuid4()
+    pages = [_make_page(document_id, i, "cover") for i in range(3)] + [
+        _make_attachment_page(document_id, 3 + i, attachment_id, "attachment") for i in range(2)
+    ]
+    assert _source_spans(pages) == [(0, 2), (3, 4)]
+
+
+def test_build_chunks_never_straddles_an_attachment_boundary() -> None:
+    from app.pipeline.chunk import CHUNK_SIZE_PAGES
+
+    document_id = uuid.uuid4()
+    attachment_id = uuid.uuid4()
+    cover_page_count = 3
+    attachment_page_count = CHUNK_SIZE_PAGES + 3
+    total_pages = cover_page_count + attachment_page_count
+    document = Document(
+        id=document_id, filename="x.pdf", status="extracted", total_pages=total_pages
+    )
+    cover_pages = [_make_page(document_id, i, f"cover {i}") for i in range(cover_page_count)]
+    attachment_pages = [
+        _make_attachment_page(document_id, cover_page_count + i, attachment_id, f"att {i}")
+        for i in range(attachment_page_count)
+    ]
+    db = FakeChunkSession(cover_pages + attachment_pages)
+
+    chunks = build_chunks(db, document)
+
+    boundary = cover_page_count
+    for chunk in chunks:
+        assert chunk.end_page < boundary or chunk.start_page >= boundary
+
+
 def test_chunk_page_text_returns_page_number_text_pairs_in_order() -> None:
     # The fake's query.all() can't faithfully interpret a real SQLAlchemy
     # `raw_text.isnot(None)` filter expression, so this fake's page list is

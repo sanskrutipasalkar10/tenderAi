@@ -27,18 +27,28 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
     ).scalar_one()
 
     # Split from pages_processed (docs/DECISIONS.md #75/#77) — a page from the
-    # uploaded PDF itself has source_url IS NULL; a page fetched from a hyperlink
-    # found inside it doesn't. Both computed live from `pages`, same pattern as
-    # pages_processed above — no new table, no new column.
+    # uploaded PDF itself has both source_url and attachment_id IS NULL; a page
+    # fetched from a hyperlink or a manually-attached supporting document doesn't.
+    # All computed live from `pages`, same pattern as pages_processed above — no new
+    # table.
     main_document_pages = db.execute(
         select(func.count())
         .select_from(Page)
-        .where(Page.document_id == document_id, Page.source_url.is_(None))
+        .where(
+            Page.document_id == document_id,
+            Page.source_url.is_(None),
+            Page.attachment_id.is_(None),
+        )
     ).scalar_one()
     linked_documents_found = db.execute(
         select(func.count(func.distinct(Page.source_url)))
         .select_from(Page)
         .where(Page.document_id == document_id, Page.source_url.isnot(None))
+    ).scalar_one()
+    attachments_processed = db.execute(
+        select(func.count(func.distinct(Page.attachment_id)))
+        .select_from(Page)
+        .where(Page.document_id == document_id, Page.attachment_id.isnot(None))
     ).scalar_one()
 
     # Chunk/module progress — computed live from existing tables (docs/DECISIONS.md
@@ -69,6 +79,7 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
         pages_processed=pages_processed,
         main_document_pages=main_document_pages,
         linked_documents_found=linked_documents_found,
+        attachments_processed=attachments_processed,
         chunks_total=chunks_total,
         chunks_mapped=chunks_mapped,
         modules_ready=cast(list[AnalysisModule], modules_ready),

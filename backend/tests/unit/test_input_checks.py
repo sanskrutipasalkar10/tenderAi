@@ -6,7 +6,7 @@ import fitz
 import pytest
 
 from app.core.exceptions import DataQualityError
-from app.guardrails.input_checks import looks_like_a_tender, validate_upload
+from app.guardrails.input_checks import looks_like_a_tender, validate_attachment, validate_upload
 
 
 def _pdf_with_text(text: str, pages: int = 1) -> bytes:
@@ -92,3 +92,28 @@ def test_validate_upload_rejects_over_page_ceiling(monkeypatch) -> None:
 
     with pytest.raises(DataQualityError, match="exceeding"):
         validate_upload(over_ceiling_pdf)
+
+
+# --- validate_attachment: basic sanity only, no tender-content heuristic ------------
+
+
+def test_validate_attachment_accepts_content_that_does_not_look_like_a_tender() -> None:
+    # A supporting document (a certificate, a past-project reference) legitimately
+    # isn't a tender itself — confirmed with the user, not assumed.
+    validate_attachment(_pdf_with_text("ISO 9001:2015 Certificate of Registration"))
+    # no exception raised
+
+
+def test_validate_attachment_rejects_corrupt_bytes() -> None:
+    with pytest.raises(DataQualityError):
+        validate_attachment(b"this is not a pdf at all")
+
+
+def test_validate_attachment_rejects_over_page_ceiling(monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "max_upload_pages", 2)
+    over_ceiling_pdf = _pdf_with_text("Certificate", pages=3)
+
+    with pytest.raises(DataQualityError, match="exceeding"):
+        validate_attachment(over_ceiling_pdf)

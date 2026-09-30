@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
+from app.models.document_attachment import DocumentAttachment
 from app.models.page import Page
 from app.models.schemas import PageContentResponse
 from app.storage.objects import get_object_bytes
@@ -33,6 +34,10 @@ def get_page_content(
     document_id: uuid.UUID, page_number: int, db: Session = Depends(get_db)
 ) -> PageContentResponse:
     page = _get_page(db, document_id, page_number)
+    attachment_filename = None
+    if page.attachment_id is not None:
+        attachment = db.get(DocumentAttachment, page.attachment_id)
+        attachment_filename = attachment.filename if attachment is not None else None
     return PageContentResponse(
         page_number=page.page_number,
         classification=page.classification,  # type: ignore[arg-type]
@@ -41,6 +46,7 @@ def get_page_content(
         confidence_score=page.confidence_score,
         has_image=page.image_s3_key is not None,
         source_url=page.source_url,
+        attachment_filename=attachment_filename,
     )
 
 

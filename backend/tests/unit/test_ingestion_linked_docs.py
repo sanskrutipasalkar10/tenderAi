@@ -30,6 +30,21 @@ def _mock_friendly_s3(monkeypatch):
     objects.get_s3_client.cache_clear()
 
 
+class _FakeEmptyQuery:
+    """No test in this file uses attachments (that's ingestion's supporting-document
+    stage, not its linked-document stage) — this just returns an empty list.
+    """
+
+    def filter(self, *_conditions):
+        return self
+
+    def order_by(self, *_args):
+        return self
+
+    def all(self):
+        return []
+
+
 class FakeSession:
     def __init__(self, document: Document) -> None:
         self._document = document
@@ -39,6 +54,9 @@ class FakeSession:
         if model is Document and pk == self._document.id:
             return self._document
         return None
+
+    def query(self, model):
+        return _FakeEmptyQuery()
 
     def add(self, obj) -> None:
         if isinstance(obj, Page) and obj.id is None:

@@ -31,6 +31,9 @@ export interface DocumentStatusResponse {
   // pages_processed legitimately exceeds total_pages during that window.
   main_document_pages: number;
   linked_documents_found: number;
+  // How many manually-attached supporting documents (docs/DECISIONS.md) have had
+  // their pages appended so far.
+  attachments_processed: number;
   chunks_total: number;
   chunks_mapped: number;
   modules_ready: AnalysisModule[];
@@ -175,6 +178,10 @@ export interface PageContentResponse {
   // rather than the PDF itself (docs/DECISIONS.md — GeM tenders link out to the real
   // tender content instead of embedding it) — null for every page of the uploaded PDF.
   source_url: string | null;
+  // Set when this page's content came from a manually-attached supporting document
+  // rather than the uploaded PDF or a hyperlink (docs/DECISIONS.md) — mutually
+  // exclusive with source_url in practice.
+  attachment_filename: string | null;
 }
 
 // --- company_profiles --------------------------------------------------------

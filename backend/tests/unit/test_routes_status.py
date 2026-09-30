@@ -46,8 +46,8 @@ def test_status_splits_main_document_pages_from_linked_documents_found() -> None
     fake_db = MagicMock()
     fake_db.get.return_value = document
     # Order matches routes_status.py: pages_processed, main_document_pages,
-    # linked_documents_found, chunks_total, chunks_mapped.
-    scalars = iter([48, 6, 2, 22, 9])
+    # linked_documents_found, attachments_processed, chunks_total, chunks_mapped.
+    scalars = iter([48, 6, 2, 1, 22, 9])
     fake_db.execute.return_value.scalar_one.side_effect = lambda: next(scalars)
     fake_db.execute.return_value.scalars.return_value = []
     app.dependency_overrides[get_db] = lambda: fake_db
@@ -59,4 +59,5 @@ def test_status_splits_main_document_pages_from_linked_documents_found() -> None
     assert body["pages_processed"] == 48
     assert body["main_document_pages"] == 6
     assert body["linked_documents_found"] == 2
+    assert body["attachments_processed"] == 1
     assert body["total_pages"] == 68
