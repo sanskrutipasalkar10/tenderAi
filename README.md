@@ -217,6 +217,18 @@ which was already correctly configured and not affected by this gap.
 - `http://localhost:8000/ready` — readiness (checks Postgres + Redis)
 - `http://localhost:8000/docs` — interactive API docs (FastAPI's auto-generated Swagger UI)
 
+**Windows shortcut:** once you've done Step 2 above and `npm install` in
+`frontend/` once each (one-time setup), `scripts\start_dev.ps1` automates
+everything after that, every time — starts `moto.server` and creates its bucket
+(Step 1), the Celery worker (Step 7), the API server (Step 6), and the frontend
+(§5 below), each in its own window, skipping anything already running rather
+than duplicating it:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_dev.ps1
+```
+It deliberately does *not* run `alembic upgrade head` for you — run that yourself
+after a `git pull` that includes a new migration.
+
 ## 5. Run the frontend
 
 New terminal:
