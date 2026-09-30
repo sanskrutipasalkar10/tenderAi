@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
+from app.core.email import send_review_notification
 from app.guardrails.output_checks import validate_analysis_result
 from app.models.schemas import AnalysisModule, DocumentAnalysisResponse, GoNoGoReviewRequest
 from app.pipeline.reduce_pass import apply_human_overrides
@@ -43,6 +44,13 @@ def review_go_no_go(
     """Human review of specific "eligibility" criteria on an already-computed go_no_go
     analysis (see app.pipeline.reduce_pass.apply_human_overrides) — never triggers a
     new LLM call, only recomputes decision/gaps/score from the effective statuses.
+
+    Marking a criterion "pass" (eligible) fires an email notification
+    (app.core.email, docs/DECISIONS.md) flagging the gap for manual entry into the
+    company profile — a reviewer overriding the model's read means the company
+    profile is missing information the tender required, and without this the same gap
+    recurs on every future tender. "fail" overrides don't notify: they agree with or
+    confirm a likely-correct read, not surface a data gap.
     """
     analysis = analysis_reader.get_analysis(db, document_id, "go_no_go")
     if analysis is None:
@@ -50,11 +58,27 @@ def review_go_no_go(
             status_code=404, detail="No go_no_go analysis found for this document yet"
         )
 
+    original_matches = analysis.result.get("criteria_matches", [])
     overrides = [(o.criterion_index, o.status, o.note) for o in request.overrides]
     updated_result = apply_human_overrides(analysis.result, overrides)
     analysis.result = validate_analysis_result("go_no_go", updated_result)
     db.commit()
     db.refresh(analysis)
+
+    # Only after the override is confirmed valid and saved — never for one
+    # apply_human_overrides would have rejected (an out-of-range index or a
+    # procedural criterion, which raises before this point is ever reached).
+    for override in request.overrides:
+        if override.status == "pass" and 0 <= override.criterion_index < len(original_matches):
+            match = original_matches[override.criterion_index]
+            send_review_notification(
+                document_id=str(document_id),
+                criterion=match.get("criterion", ""),
+                required=match.get("required", ""),
+                company_value=match.get("company_value", ""),
+                reviewer_note=override.note,
+            )
+
     return analysis
 
 

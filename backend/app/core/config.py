@@ -45,6 +45,19 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_host: str = "http://localhost:3001"
 
+    # Review-evidence email notifications (docs/DECISIONS.md) — sent when a bid-team
+    # member marks a criterion eligible during human review, flagging the gap for
+    # sanskruti.pasalkar@c4i4.org to fold into the company profile manually (this app
+    # never writes company_profiles from a review action itself — see
+    # app.core.email). No-ops cleanly when smtp_host/smtp_username are unset, same
+    # pattern as Langfuse above — a missing SMTP config never blocks the review itself.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_address: str = ""
+    review_notification_email: str = "sanskruti.pasalkar@c4i4.org"
+
     # Upload limits
     max_upload_pages: int = 2000
     max_upload_size_mb: int = 500

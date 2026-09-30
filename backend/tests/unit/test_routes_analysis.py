@@ -5,7 +5,7 @@ rule 8.
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -109,6 +109,86 @@ def test_review_applies_override_and_returns_updated_decision(_overrides) -> Non
     assert body["result"]["gaps"] == []
     assert body["result"]["criteria_matches"][0]["human_override"]["status"] == "pass"
     _overrides.commit.assert_called_once()
+
+
+def test_review_pass_override_sends_notification_email(_overrides) -> None:
+    from app.pipeline import reduce_pass
+
+    all_high = dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 90)
+    analysis = _analysis({
+        "score": 0,
+        "decision": "No-Go",
+        "criteria_matches": [
+            {
+                "criterion": "Mandatory ISO 9001 certification",
+                "required": "ISO 9001:2015",
+                "company_value": "No relevant information in company profile",
+                "status": "insufficient_data",
+                "page_ref": 2,
+                "gate": "Mandatory certification unavailable",
+                "criterion_type": "eligibility",
+                "human_override": None,
+            }
+        ],
+        "gaps": ["Mandatory certification unavailable"],
+        "next_steps": [],
+        "factor_scores": all_high,
+    })
+    _overrides.query.return_value.filter.return_value.first.return_value = analysis
+
+    with patch("app.api.routes_analysis.send_review_notification") as mock_send:
+        response = client.patch(
+            f"/documents/{analysis.document_id}/analysis/go_no_go/review",
+            json={
+                "overrides": [
+                    {"criterion_index": 0, "status": "pass", "note": "Certificate on file"}
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    mock_send.assert_called_once_with(
+        document_id=str(analysis.document_id),
+        criterion="Mandatory ISO 9001 certification",
+        required="ISO 9001:2015",
+        company_value="No relevant information in company profile",
+        reviewer_note="Certificate on file",
+    )
+
+
+def test_review_fail_override_does_not_send_notification_email(_overrides) -> None:
+    from app.pipeline import reduce_pass
+
+    all_high = dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 90)
+    analysis = _analysis({
+        "score": 0,
+        "decision": "No-Go",
+        "criteria_matches": [
+            {
+                "criterion": "Mandatory ISO 9001 certification",
+                "required": "ISO 9001:2015",
+                "company_value": "Certificate expired in 2023",
+                "status": "insufficient_data",
+                "page_ref": 2,
+                "gate": "Mandatory certification unavailable",
+                "criterion_type": "eligibility",
+                "human_override": None,
+            }
+        ],
+        "gaps": ["Mandatory certification unavailable"],
+        "next_steps": [],
+        "factor_scores": all_high,
+    })
+    _overrides.query.return_value.filter.return_value.first.return_value = analysis
+
+    with patch("app.api.routes_analysis.send_review_notification") as mock_send:
+        response = client.patch(
+            f"/documents/{analysis.document_id}/analysis/go_no_go/review",
+            json={"overrides": [{"criterion_index": 0, "status": "fail", "note": None}]},
+        )
+
+    assert response.status_code == 200
+    mock_send.assert_not_called()
 
 
 def test_review_out_of_range_index_returns_422(_overrides) -> None:
