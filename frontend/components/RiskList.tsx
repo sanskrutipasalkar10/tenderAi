@@ -2,24 +2,19 @@
 
 import { useState } from "react";
 import CitationLink from "./CitationLink";
-import ScoreGauge from "./ScoreGauge";
-import { SeverityBadge } from "./badges";
+import { SEVERITY_STYLES, SeverityBadge } from "./badges";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
 import { ChevronDownIcon } from "./ui/icons";
 import type { RiskFinderResult } from "@/lib/types";
 
-const SEVERITY_RANK: Record<RiskFinderResult["risks"][number]["severity"], number> = {
+type Severity = RiskFinderResult["risks"][number]["severity"];
+
+const SEVERITY_RANK: Record<Severity, number> = {
   HIGH: 0,
   MEDIUM: 1,
   LOW: 2,
 };
-
-function gaugeColor(riskScore: number): string {
-  if (riskScore >= 70) return "stroke-severity-high";
-  if (riskScore >= 40) return "stroke-severity-medium";
-  return "stroke-severity-low";
-}
 
 export default function RiskList({
   documentId,
@@ -31,20 +26,47 @@ export default function RiskList({
   const sortedRisks = [...result.risks].sort(
     (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
   );
+  const severityCounts = result.risks.reduce(
+    (acc, r) => {
+      acc[r.severity] += 1;
+      return acc;
+    },
+    { HIGH: 0, MEDIUM: 0, LOW: 0 } as Record<Severity, number>,
+  );
 
   return (
     <div className="space-y-8">
       <Card padding="lg" className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-10">
-          <ScoreGauge
-            score={result.risk_score}
-            label="Overall risk score"
-            colorClass={gaugeColor(result.risk_score)}
-          />
+          {/* A count, not a 0-100 score (docs/DESIGN.md) — a risk score styled like
+           * Go/No-Go's "97/100" read as "97% good" to users, when a high number here
+           * actually means more risk. The raw count of flagged risks has no such
+           * ambiguity. */}
+          <div className="flex flex-none flex-col items-center">
+            <span className="data-mono text-5xl font-semibold text-foreground">
+              {result.risks.length}
+            </span>
+            <span className="mt-2 text-sm font-medium text-muted-foreground">
+              Risk{result.risks.length === 1 ? "" : "s"} identified
+            </span>
+          </div>
           <div className="text-center sm:text-left">
-            <p className="text-sm text-muted-foreground">
-              {result.risks.length} risk{result.risks.length === 1 ? "" : "s"} identified, ranked
-              by severity below. Every clause links to its source page.
+            {result.risks.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+                {(["HIGH", "MEDIUM", "LOW"] as const)
+                  .filter((severity) => severityCounts[severity] > 0)
+                  .map((severity) => (
+                    <span
+                      key={severity}
+                      className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold ${SEVERITY_STYLES[severity]}`}
+                    >
+                      {severityCounts[severity]} {severity}
+                    </span>
+                  ))}
+              </div>
+            )}
+            <p className="mt-3 text-sm text-muted-foreground">
+              Ranked by severity below. Every clause links to its source page.
             </p>
           </div>
         </div>

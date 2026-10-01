@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
-import { CriterionStatusBadge, DecisionBadge, SeverityBadge } from "@/components/badges";
+import { CriterionStatusBadge, DecisionBadge, SEVERITY_STYLES, SeverityBadge } from "@/components/badges";
 import { ApiError, getAllAnalysis, getDocumentStatus } from "@/lib/api";
 import { TQ_FACTOR_WEIGHTS } from "@/lib/tqFactorWeights";
 import type {
@@ -43,12 +43,6 @@ const GAUGE_COLOR: Record<GoNoGoResult["decision"], string> = {
   "Conditional-Go (Partner Required)": "stroke-status-conditional",
   "No-Go": "stroke-status-no-go",
 };
-
-function riskGaugeColor(riskScore: number): string {
-  if (riskScore >= 70) return "stroke-severity-high";
-  if (riskScore >= 40) return "stroke-severity-medium";
-  return "stroke-severity-low";
-}
 
 const MISSING_VALUE_PATTERN = /not (stated|found|available|mentioned|provided)/i;
 function isMissingValue(text: string): boolean {
@@ -505,20 +499,46 @@ function RiskFinderSection({ result }: { result: RiskFinderResult }) {
   const sortedRisks = [...result.risks].sort(
     (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
   );
+  const severityCounts = result.risks.reduce(
+    (acc, r) => {
+      acc[r.severity] += 1;
+      return acc;
+    },
+    { HIGH: 0, MEDIUM: 0, LOW: 0 } as Record<RiskFinderResult["risks"][number]["severity"], number>,
+  );
 
   return (
     <section className="mb-4 break-before-page">
       <SectionHeading>Risk Finder</SectionHeading>
       <div className="mb-6 flex flex-wrap items-center gap-6 break-inside-avoid">
-        <StaticGauge
-          score={result.risk_score}
-          label="Overall risk score"
-          colorClass={riskGaugeColor(result.risk_score)}
-        />
-        <p className="max-w-md text-sm text-muted-foreground">
-          {result.risks.length} risk{result.risks.length === 1 ? "" : "s"} identified, ranked by
-          severity below.
-        </p>
+        {/* A count, not a 0-100 score — see RiskList.tsx for why. */}
+        <div className="flex flex-none flex-col items-center">
+          <span className="data-mono text-3xl font-semibold text-foreground">
+            {result.risks.length}
+          </span>
+          <span className="mt-1 text-xs font-medium text-muted-foreground">
+            Risk{result.risks.length === 1 ? "" : "s"} identified
+          </span>
+        </div>
+        <div className="max-w-md">
+          {result.risks.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {(["HIGH", "MEDIUM", "LOW"] as const)
+                .filter((severity) => severityCounts[severity] > 0)
+                .map((severity) => (
+                  <span
+                    key={severity}
+                    className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold ${SEVERITY_STYLES[severity]}`}
+                  >
+                    {severityCounts[severity]} {severity}
+                  </span>
+                ))}
+            </div>
+          )}
+          <p className="mt-2 text-sm text-muted-foreground">
+            Ranked by severity below.
+          </p>
+        </div>
       </div>
 
       {sortedRisks.length === 0 ? (

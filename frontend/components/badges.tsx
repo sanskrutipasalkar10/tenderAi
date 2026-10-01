@@ -23,7 +23,7 @@ export function DecisionBadge({ decision }: { decision: GoNoGoResult["decision"]
   );
 }
 
-const SEVERITY_STYLES: Record<RiskFinderRisk["severity"], string> = {
+export const SEVERITY_STYLES: Record<RiskFinderRisk["severity"], string> = {
   HIGH: "bg-severity-high/10 text-severity-high ring-1 ring-severity-high/30",
   MEDIUM: "bg-severity-medium/10 text-severity-medium ring-1 ring-severity-medium/30",
   LOW: "bg-severity-low/10 text-severity-low ring-1 ring-severity-low/30",
