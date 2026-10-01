@@ -1,9 +1,19 @@
 "use client";
 
+import {
+  Banknote,
+  CalendarDays,
+  ClipboardList,
+  FileCheck,
+  FileText,
+  Handshake,
+  ListTodo,
+  Target,
+} from "lucide-react";
 import { useState } from "react";
 import CitationLink from "./CitationLink";
 import Card from "./ui/Card";
-import Tabs from "./ui/Tabs";
+import Tabs, { TabIconChip } from "./ui/Tabs";
 import { ChevronDownIcon } from "./ui/icons";
 import type { GoNoGoResult, SynopsisResult } from "@/lib/types";
 
@@ -22,8 +32,8 @@ function isMissingValue(text: string): boolean {
 }
 
 const SUB_TABS = [
-  { id: "summary", label: "Summary" },
-  { id: "checklist", label: "Checklist" },
+  { id: "summary", label: "Summary", icon: <TabIconChip icon={FileText} /> },
+  { id: "checklist", label: "Checklist", icon: <TabIconChip icon={ClipboardList} tone="go" /> },
 ] as const;
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
@@ -73,9 +83,9 @@ export default function SynopsisView({
           </Card>
 
           <div className="grid gap-4">
-            <Section title="Scope of work">{result.scope_summary}</Section>
-            <Section title="Eligibility">{result.eligibility_summary}</Section>
-            <Section title="Payment terms">{result.payment_terms_summary}</Section>
+            <Section title="Scope of work" icon={Target}>{result.scope_summary}</Section>
+            <Section title="Eligibility" icon={Handshake}>{result.eligibility_summary}</Section>
+            <Section title="Payment terms" icon={Banknote}>{result.payment_terms_summary}</Section>
           </div>
 
           {figureCount > 0 && (
@@ -96,11 +106,17 @@ export default function SynopsisView({
               {figuresOpen && (
                 <div className="grid gap-6 border-t border-border p-5 lg:grid-cols-2">
                   {result.key_dates.length > 0 && (
-                    <FactTable title="Key dates" documentId={documentId} facts={result.key_dates} />
+                    <FactTable
+                      title="Key dates"
+                      icon={CalendarDays}
+                      documentId={documentId}
+                      facts={result.key_dates}
+                    />
                   )}
                   {result.financials.length > 0 && (
                     <FactTable
                       title="Financials"
+                      icon={Banknote}
                       documentId={documentId}
                       facts={result.financials}
                     />
@@ -145,7 +161,10 @@ function ChecklistTab({
     <div className="space-y-8">
       {documentsRequired.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-foreground">Documents to submit</h3>
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <TabIconChip icon={FileCheck} tone="go" />
+            Documents to submit
+          </h3>
           <ul className="space-y-2">
             {documentsRequired.map((doc, i) => (
               <li key={i}>
@@ -163,7 +182,10 @@ function ChecklistTab({
 
       {procedural.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-semibold text-foreground">Bid preparation checklist</h3>
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <TabIconChip icon={ListTodo} />
+            Bid preparation checklist
+          </h3>
           <Card padding="sm" className="overflow-x-auto p-0">
             <table className="w-full min-w-160 border-collapse text-sm">
               <thead>
@@ -200,10 +222,21 @@ function ChecklistTab({
   );
 }
 
-function Section({ title, children }: { title: string; children: string }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: typeof Target;
+  children: string;
+}) {
   return (
     <Card padding="sm">
-      <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <TabIconChip icon={icon} />
+        {title}
+      </h3>
       <p className="text-sm leading-relaxed text-muted-foreground">{children}</p>
     </Card>
   );
@@ -211,16 +244,21 @@ function Section({ title, children }: { title: string; children: string }) {
 
 function FactTable({
   title,
+  icon,
   documentId,
   facts,
 }: {
   title: string;
+  icon: typeof Target;
   documentId: string;
   facts: SynopsisResult["key_dates"];
 }) {
   return (
     <Card padding="sm">
-      <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <TabIconChip icon={icon} />
+        {title}
+      </h3>
       <dl className="divide-y divide-border">
         {facts.map((fact, i) => (
           <div key={i} className="py-3 text-sm first:pt-0 last:pb-0">

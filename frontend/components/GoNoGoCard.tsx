@@ -1,5 +1,20 @@
 "use client";
 
+import {
+  AlertTriangle,
+  Banknote,
+  ClipboardCheck,
+  Handshake,
+  History,
+  Landmark,
+  LayoutDashboard,
+  ListChecks,
+  ListTodo,
+  ShieldCheck,
+  Target,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { useState } from "react";
 import { ApiError, resubmitGoNoGo, reviewGoNoGo } from "@/lib/api";
 import type { GoNoGoResult } from "@/lib/types";
@@ -8,7 +23,7 @@ import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, DecisionBadge } from "./badges";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
-import Tabs from "./ui/Tabs";
+import Tabs, { TabIconChip } from "./ui/Tabs";
 
 const GAUGE_COLOR: Record<GoNoGoResult["decision"], string> = {
   Go: "stroke-status-go",
@@ -30,6 +45,26 @@ const FACTOR_WEIGHTS: Record<string, number> = {
   "Partner/OEM Availability": 5,
 };
 
+const FACTOR_ICON: Record<string, typeof ShieldCheck> = {
+  "PQ Eligibility": ShieldCheck,
+  "Similar Experience": History,
+  "Technical Capability": Wrench,
+  "Government/PSU Experience": Landmark,
+  "Key Manpower": Users,
+  "Financial Capability": Banknote,
+  "Strategic Relevance": Target,
+  "Partner/OEM Availability": Handshake,
+};
+
+// A factor's bar is colored by its own score, not the card's brand color — a weak
+// factor should visually read as weak at a glance, same status-color language as the
+// Go/No-Go decision badge itself.
+function scoreBarColor(score: number): string {
+  if (score >= 70) return "bg-status-go";
+  if (score >= 40) return "bg-status-conditional";
+  return "bg-status-no-go";
+}
+
 // A short, specific "why" — names the actual triggered gates rather than a generic
 // canned sentence, so "why is this No-Go" has a real answer at a glance.
 function buildJustification(result: GoNoGoResult): string {
@@ -49,8 +84,8 @@ function buildJustification(result: GoNoGoResult): string {
 }
 
 const SUB_TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "details", label: "Details" },
+  { id: "overview", label: "Overview", icon: <TabIconChip icon={LayoutDashboard} /> },
+  { id: "details", label: "Details", icon: <TabIconChip icon={ListChecks} /> },
 ] as const;
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
@@ -119,22 +154,31 @@ export default function GoNoGoCard({
 
           {result.factor_scores && (
             <Card>
-              <h3 className="mb-4 text-sm font-semibold text-foreground">Decision factors</h3>
-              <div className="space-y-2.5">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TabIconChip icon={Target} />
+                Decision factors
+              </h3>
+              <div className="space-y-2">
                 {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => {
-                  const score = result.factor_scores?.[factor] ?? 0;
+                  const score = Math.max(0, Math.min(100, result.factor_scores?.[factor] ?? 0));
                   return (
-                    <div key={factor} className="flex items-center gap-3">
-                      <span className="w-44 flex-none truncate text-xs text-muted-foreground">{factor}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      key={factor}
+                      className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5"
+                    >
+                      <TabIconChip icon={FACTOR_ICON[factor]} />
+                      <span className="w-40 flex-none truncate text-xs font-medium text-foreground">
+                        {factor}
+                      </span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+                          className={`h-full rounded-full ${scoreBarColor(score)}`}
+                          style={{ width: `${score}%` }}
                         />
                       </div>
-                      <span className="data-mono w-24 flex-none whitespace-nowrap text-right text-xs text-muted-foreground">
+                      <span className="data-mono w-20 flex-none whitespace-nowrap text-right text-xs font-semibold text-foreground">
                         {score}
-                        <span className="text-muted-foreground"> · {weight}%</span>
+                        <span className="font-normal text-muted-foreground"> · {weight}%</span>
                       </span>
                     </div>
                   );
@@ -145,7 +189,10 @@ export default function GoNoGoCard({
 
           {result.gaps.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Gaps &amp; blockers</h3>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TabIconChip icon={AlertTriangle} tone="danger" />
+                Gaps &amp; blockers
+              </h3>
               <ul className="space-y-2">
                 {result.gaps.map((gap) => (
                   <li key={gap}>
@@ -188,7 +235,10 @@ export default function GoNoGoCard({
         <div className="space-y-8">
           {result.factor_scores && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Factor breakdown</h3>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TabIconChip icon={Target} />
+                Factor breakdown
+              </h3>
               <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-100 border-collapse text-sm">
                   <thead>
@@ -199,15 +249,37 @@ export default function GoNoGoCard({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => (
-                      <tr key={factor} className="hover:bg-surface">
-                        <td className="px-5 py-3">{factor}</td>
-                        <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
-                        <td className="px-5 py-3 text-muted-foreground">
-                          {result.factor_scores?.[factor] ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
+                    {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => {
+                      const score = result.factor_scores?.[factor];
+                      return (
+                        <tr key={factor} className="hover:bg-surface">
+                          <td className="px-5 py-3">
+                            <span className="inline-flex items-center gap-2">
+                              <TabIconChip icon={FACTOR_ICON[factor]} />
+                              {factor}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
+                          <td className="px-5 py-3">
+                            {score === undefined ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span
+                                className={`data-mono inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
+                                  score >= 70
+                                    ? "bg-status-go/10 text-status-go"
+                                    : score >= 40
+                                      ? "bg-status-conditional/10 text-status-conditional"
+                                      : "bg-status-no-go/10 text-status-no-go"
+                                }`}
+                              >
+                                {score}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </Card>
@@ -216,7 +288,10 @@ export default function GoNoGoCard({
 
           {eligibility.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Eligibility criteria</h3>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TabIconChip icon={ClipboardCheck} tone="go" />
+                Eligibility criteria
+              </h3>
               <Card padding="sm" className="overflow-x-auto p-0">
                 <table className="w-full min-w-160 border-collapse text-sm">
                   <thead>
@@ -258,7 +333,10 @@ export default function GoNoGoCard({
 
           {result.next_steps.length > 0 && (
             <div>
-              <h3 className="mb-3 text-sm font-semibold text-foreground">Recommended next steps</h3>
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <TabIconChip icon={ListTodo} />
+                Recommended next steps
+              </h3>
               <ul className="space-y-2">
                 {result.next_steps.map((step, i) => (
                   <li key={step}>

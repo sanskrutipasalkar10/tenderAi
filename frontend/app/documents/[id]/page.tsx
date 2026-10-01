@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { FileDown } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, FileDown, FileText, Scale } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
@@ -14,7 +14,7 @@ import SynopsisView from "@/components/SynopsisView";
 import { StatusBadge } from "@/components/badges";
 import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
-import Tabs from "@/components/ui/Tabs";
+import Tabs, { TabIconChip } from "@/components/ui/Tabs";
 import { ApiError, getAllAnalysis, getDocumentStatus } from "@/lib/api";
 import type {
   AnalysisModule,
@@ -36,7 +36,25 @@ const TABS: { module: UiTab; label: string }[] = [
   { module: "company_checklist", label: "Company Checklist" },
   { module: "risk_finder", label: "Risk Finder" },
 ];
-const TAB_ITEMS = TABS.map((t) => ({ id: t.module, label: t.label }));
+
+const TAB_ICON: Record<UiTab, typeof Scale> = {
+  go_no_go: Scale,
+  synopsis: FileText,
+  company_checklist: ClipboardCheck,
+  risk_finder: AlertTriangle,
+};
+const TAB_ICON_TONE: Record<UiTab, "primary" | "go" | "danger"> = {
+  go_no_go: "primary",
+  synopsis: "primary",
+  company_checklist: "go",
+  risk_finder: "danger",
+};
+
+const TAB_ITEMS = TABS.map((t) => ({
+  id: t.module,
+  label: t.label,
+  icon: <TabIconChip icon={TAB_ICON[t.module]} tone={TAB_ICON_TONE[t.module]} />,
+}));
 
 const POLL_INTERVAL_MS = 4000;
 const TERMINAL_STATUSES = new Set(["ready", "failed"]);

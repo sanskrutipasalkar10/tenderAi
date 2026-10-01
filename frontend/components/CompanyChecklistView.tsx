@@ -1,20 +1,50 @@
 "use client";
 
+import {
+  Blocks,
+  BookOpenCheck,
+  CalendarCheck,
+  Cpu,
+  History,
+  Landmark,
+  LifeBuoy,
+  ListChecks,
+  Scale,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { useState } from "react";
 import type { GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, SeverityBadge } from "./badges";
 import Card from "./ui/Card";
-import Tabs from "./ui/Tabs";
+import Tabs, { TabIconChip } from "./ui/Tabs";
 import { TQ_FACTOR_WEIGHTS } from "@/lib/tqFactorWeights";
 
 const SUB_TABS = [
-  { id: "pq", label: "A. Pre-Qualification" },
-  { id: "tq", label: "B. Technical Qualification" },
-  { id: "decision", label: "C. Bid/No-Bid Decision" },
-  { id: "partner", label: "D. Partner/OEM Route" },
+  { id: "pq", label: "A. Pre-Qualification", icon: <TabIconChip icon={ShieldCheck} tone="go" /> },
+  { id: "tq", label: "B. Technical Qualification", icon: <TabIconChip icon={Cpu} /> },
+  { id: "decision", label: "C. Bid/No-Bid Decision", icon: <TabIconChip icon={Scale} tone="warning" /> },
+  { id: "partner", label: "D. Partner/OEM Route", icon: <TabIconChip icon={Users} /> },
 ] as const;
+
+const TQ_FACTOR_ICON: Record<string, typeof Cpu> = {
+  "Similar Project Experience": History,
+  "Government/PSU Project Experience": Landmark,
+  "Relevant Industry 4.0/AI/ML Experience": Cpu,
+  "Technical Solution/Methodology": Wrench,
+  "Understanding of Requirements": BookOpenCheck,
+  "Proposed Architecture/Solution Design": Blocks,
+  "Key Personnel": Users,
+  "Technology Capability": Cpu,
+  "Implementation Methodology": ListChecks,
+  "Project Management Approach": CalendarCheck,
+  "Support/O&M Approach": LifeBuoy,
+  "Innovation/Value Addition": Sparkles,
+};
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
 const RECOMMENDATION_LABEL: Record<GoNoGoResult["decision"], string> = {
@@ -123,7 +153,10 @@ function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
       </Card>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Factor breakdown</h3>
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <TabIconChip icon={Cpu} />
+          Factor breakdown
+        </h3>
         <Card padding="sm" className="overflow-x-auto p-0">
           <table className="w-full min-w-100 border-collapse text-sm">
             <thead>
@@ -134,15 +167,37 @@ function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {Object.entries(TQ_FACTOR_WEIGHTS).map(([factor, weight]) => (
-                <tr key={factor} className="hover:bg-surface">
-                  <td className="px-5 py-3">{factor}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
-                  <td className="px-5 py-3 text-muted-foreground">
-                    {goNoGoResult.tq_factor_scores?.[factor] ?? "—"}
-                  </td>
-                </tr>
-              ))}
+              {Object.entries(TQ_FACTOR_WEIGHTS).map(([factor, weight]) => {
+                const score = goNoGoResult.tq_factor_scores?.[factor];
+                return (
+                  <tr key={factor} className="hover:bg-surface">
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center gap-2">
+                        <TabIconChip icon={TQ_FACTOR_ICON[factor] ?? Cpu} />
+                        {factor}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{weight}%</td>
+                    <td className="px-5 py-3">
+                      {score === undefined ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <span
+                          className={`data-mono inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
+                            score >= 70
+                              ? "bg-status-go/10 text-status-go"
+                              : score >= 40
+                                ? "bg-status-conditional/10 text-status-conditional"
+                                : "bg-status-no-go/10 text-status-no-go"
+                          }`}
+                        >
+                          {score}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </Card>
