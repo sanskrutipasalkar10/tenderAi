@@ -75,9 +75,11 @@ export function listDocuments(): Promise<DocumentUploadResponse[]> {
   return apiFetch("/documents");
 }
 
+// companyProfileId is required — the backend rejects an upload with none (a company
+// profile is now compulsory for analysis, not optional).
 export function uploadDocument(
   file: File,
-  companyProfileId?: string,
+  companyProfileId: string,
   attachments: File[] = [],
 ): Promise<DocumentUploadResponse> {
   const formData = new FormData();
@@ -85,8 +87,10 @@ export function uploadDocument(
   for (const attachment of attachments) {
     formData.append("attachments", attachment);
   }
-  const query = companyProfileId ? `?company_profile_id=${companyProfileId}` : "";
-  return apiFetch(`/documents${query}`, { method: "POST", body: formData });
+  return apiFetch(`/documents?company_profile_id=${companyProfileId}`, {
+    method: "POST",
+    body: formData,
+  });
 }
 
 export function getDocumentStatus(documentId: string): Promise<DocumentStatusResponse> {

@@ -20,6 +20,13 @@ from app.main import app
 
 client = TestClient(app)
 
+# company_profile_id is now a required query param (docs/DECISIONS.md) — every upload
+# test below needs one. The fake DB's db.get() returns a plain MagicMock (truthy, not
+# None) for any arguments by default, so this doesn't need its own explicit mock
+# unless a test specifically wants the "profile not found" 404 path.
+FAKE_COMPANY_PROFILE_ID = uuid.uuid4()
+UPLOAD_PARAMS = {"company_profile_id": str(FAKE_COMPANY_PROFILE_ID)}
+
 # A real, small, genuinely tender-like fixture — Phase 6 wires app.guardrails.
 # input_checks.validate_upload into this route for real, so "a valid PDF upload"
 # now means a real PDF that also passes the "is this a tender" heuristic, not
@@ -57,6 +64,7 @@ def _override_db():
 def test_upload_rejects_non_pdf_content_type() -> None:
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")},
     )
     assert response.status_code == 422
@@ -66,6 +74,7 @@ def test_upload_rejects_non_pdf_content_type() -> None:
 def test_upload_rejects_empty_file() -> None:
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={"file": ("empty.pdf", io.BytesIO(b""), "application/pdf")},
     )
     assert response.status_code == 422
@@ -78,6 +87,7 @@ def test_upload_rejects_oversized_file() -> None:
     oversized = b"x" * (settings.max_upload_size_mb * 1024 * 1024 + 1)
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={"file": ("big.pdf", io.BytesIO(oversized), "application/pdf")},
     )
     assert response.status_code == 422
@@ -96,10 +106,29 @@ def test_upload_rejects_content_that_does_not_look_like_a_tender() -> None:
 
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={"file": ("memo.pdf", io.BytesIO(non_tender_pdf), "application/pdf")},
     )
     assert response.status_code == 422
     assert "tender" in response.json()["message"].lower()
+
+
+def test_upload_requires_company_profile_id() -> None:
+    response = client.post(
+        "/documents",
+        files={"file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf")},
+    )
+    assert response.status_code == 422
+
+
+def test_upload_404s_when_company_profile_not_found(_override_db) -> None:
+    _override_db.get.return_value = None
+    response = client.post(
+        "/documents",
+        params=UPLOAD_PARAMS,
+        files={"file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf")},
+    )
+    assert response.status_code == 404
 
 
 @patch("app.api.routes_ingest.enqueue_full_pipeline")
@@ -109,6 +138,7 @@ def test_valid_upload_enqueues_ingestion_task(mock_upload_pdf, mock_enqueue, _ov
 
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={"file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf")},
     )
 
@@ -133,6 +163,7 @@ def _small_pdf(text: str) -> bytes:
 def test_upload_rejects_non_pdf_attachment() -> None:
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={
             "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
             "attachments": ("certificate.txt", io.BytesIO(b"hello"), "text/plain"),
@@ -146,6 +177,7 @@ def test_upload_rejects_non_pdf_attachment() -> None:
 def test_upload_rejects_empty_attachment() -> None:
     response = client.post(
         "/documents",
+        params=UPLOAD_PARAMS,
         files={
             "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
             "attachments": ("empty.pdf", io.BytesIO(b""), "application/pdf"),
@@ -172,6 +204,7 @@ def test_upload_accepts_an_attachment_that_would_fail_the_tender_heuristic() -> 
     ):
         response = client.post(
             "/documents",
+            params=UPLOAD_PARAMS,
             files={
                 "file": ("tender.pdf", io.BytesIO(VALID_FIXTURE_PDF), "application/pdf"),
                 "attachments": (

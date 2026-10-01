@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, Check, FileText, UploadCloud, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
@@ -65,11 +66,11 @@ function UploadFlow() {
   }
 
   async function handleUpload() {
-    if (!file) return;
+    if (!file || !companyProfileId) return;
     setUploading(true);
     setError(null);
     try {
-      const doc = await uploadDocument(file, companyProfileId || undefined, attachments);
+      const doc = await uploadDocument(file, companyProfileId, attachments);
       // A real URL, not local component state — landing here means the browser's
       // back/forward buttons and page reloads always re-sync to the backend's actual
       // persisted status (see ProcessingPipeline), instead of an ephemeral "just
@@ -221,33 +222,55 @@ function UploadFlow() {
             )}
           </div>
 
-          {profiles.length > 0 && (
-            <div className="mt-9 border-t border-border pt-7">
-              <div className="mb-4 flex items-center gap-3">
-                <span className="step-number">03</span>
-                <div>
-                  <p className="eyebrow">ELIGIBILITY CONTEXT</p>
-                  <h2 className="font-display text-xl font-semibold">Company profile</h2>
-                </div>
+          <div className="mt-9 border-t border-border pt-7">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="step-number">03</span>
+              <div>
+                <p className="eyebrow">ELIGIBILITY CONTEXT</p>
+                <h2 className="font-display text-xl font-semibold">Company profile</h2>
               </div>
-              <Field label="Evaluate against a company profile">
-                <Select value={companyProfileId} onChange={(e) => setCompanyProfileId(e.target.value)}>
-                  <option value="">No company profile (skip Go/No-Go for now)</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.company_name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Profiles help compare tender requirements with your organisation&apos;s credentials.
-              </p>
             </div>
-          )}
+            {profiles.length > 0 ? (
+              <>
+                <Field label="Evaluate against a company profile (required)">
+                  <Select
+                    value={companyProfileId}
+                    onChange={(e) => setCompanyProfileId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Select a company profile
+                    </option>
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.company_name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Required — every analysis compares the tender against a real company
+                  profile, so Go/No-Go has something to score against.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                A company profile is required before uploading.{" "}
+                <Link href="/company-profile" className="text-primary underline underline-offset-2">
+                  Create one first
+                </Link>
+                , then come back here.
+              </p>
+            )}
+          </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-border pt-7">
-            <Button size="md" disabled={!file} loading={uploading} onClick={handleUpload} icon={<UploadCloud className="h-4 w-4" />}>
+            <Button
+              size="md"
+              disabled={!file || !companyProfileId}
+              loading={uploading}
+              onClick={handleUpload}
+              icon={<UploadCloud className="h-4 w-4" />}
+            >
               Upload and start analysis
             </Button>
           </div>

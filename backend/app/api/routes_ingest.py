@@ -8,6 +8,15 @@ the "is this a tender" heuristic — is app.guardrails.input_checks.validate_upl
 (Phase 6), called before a Document row is created or anything reaches S3/Celery, so a
 rejected upload costs nothing beyond the validation itself.
 
+`company_profile_id` is required (docs/DECISIONS.md) — a tender uploaded with no
+company profile at all used to short-circuit Go/No-Go straight to
+"Conditional-Go (Partner Required)" with no real comparison ever attempted; the user
+asked for profile selection to be compulsory instead, since an analysis run with
+nothing to compare against isn't useful. A profile that exists but is missing
+specific required fields (turnover, certifications, etc.) still hits that same
+graceful short-circuit in reduce_pass.py — this only closes the "no profile selected
+at all" path, not the "selected profile is incomplete" one.
+
 Optional `attachments` (docs/DECISIONS.md — migration 0005) let a user bundle
 supporting documents (a company certificate, a past-project reference) in at the same
 time as the primary tender PDF — upload-time only, confirmed with the user, not a
@@ -20,7 +29,7 @@ same document, continuing the page_number sequence exactly like a fetched hyperl
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +37,7 @@ from app.core.config import settings
 from app.core.dependencies import get_db
 from app.core.exceptions import DataQualityError
 from app.guardrails.input_checks import validate_attachment, validate_upload
+from app.models.company_profile import CompanyProfile
 from app.models.document import Document
 from app.models.document_attachment import DocumentAttachment
 from app.models.schemas import DocumentUploadResponse
@@ -42,10 +52,13 @@ MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 @router.post("", response_model=DocumentUploadResponse, status_code=201)
 def upload_document(
     file: UploadFile,
-    company_profile_id: uuid.UUID | None = None,
+    company_profile_id: uuid.UUID,
     attachments: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ) -> Document:
+    if db.get(CompanyProfile, company_profile_id) is None:
+        raise HTTPException(status_code=404, detail="Company profile not found")
+
     if file.content_type != "application/pdf":
         raise DataQualityError("Only PDF files are accepted")
 
