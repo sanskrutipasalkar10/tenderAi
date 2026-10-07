@@ -97,6 +97,13 @@ export function getDocumentStatus(documentId: string): Promise<DocumentStatusRes
   return apiFetch(`/documents/${documentId}/status`);
 }
 
+// Re-runs go_no_go/synopsis/risk_finder against the document's existing extracted
+// facts — for after a company-profile or backend-logic change. Only valid once a
+// document has already reached status "ready" once (the backend 409s otherwise).
+export function reevaluateDocument(documentId: string): Promise<DocumentUploadResponse> {
+  return apiFetch(`/documents/${documentId}/reevaluate`, { method: "POST" });
+}
+
 export function getAnalysis<T = unknown>(
   documentId: string,
   module: AnalysisModule,

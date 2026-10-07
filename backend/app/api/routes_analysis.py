@@ -6,12 +6,18 @@ orchestrator once it exists). A 404 here means "not analyzed yet," not "run it n
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
 from app.core.email import send_review_notification
 from app.guardrails.output_checks import validate_analysis_result
-from app.models.schemas import AnalysisModule, DocumentAnalysisResponse, GoNoGoReviewRequest
+from app.models.schemas import (
+    AnalysisModule,
+    DocumentAnalysisResponse,
+    DocumentUploadResponse,
+    GoNoGoReviewRequest,
+)
 from app.pipeline.reduce_pass import apply_human_overrides
 from app.services import analysis_reader
 
@@ -116,3 +122,50 @@ def resubmit_go_no_go(document_id: uuid.UUID, db: Session = Depends(get_db)):
         else None
     )
     return rescore_go_no_go(db, document, profile_to_dict(profile))
+
+
+@router.post("/{document_id}/reevaluate", response_model=DocumentUploadResponse)
+def reevaluate_document(document_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Dashboard "Reevaluate" action — re-runs all three reduce-pass modules (go_no_go,
+    synopsis, risk_finder) against a document's existing extracted facts, for when the
+    company profile or reduce-pass prompts/logic have changed since it was last
+    analyzed. Unlike resubmit_go_no_go above, this is routed through Celery
+    (app.workers.tasks_pipeline.enqueue_reevaluation), not run synchronously: it's 3
+    real LLM calls in sequence, the same work the pipeline's own reduce stage does, and
+    that stage has taken several minutes in practice — too slow to hold an HTTP request
+    open for.
+
+    Only allowed from status="ready" — the only terminal "finished" state the pipeline
+    actually sets today — so this never races with a first-time analysis still in
+    flight. Also requires at least one chunk to exist, since the reduce pass reads from
+    chunk_extractions and has nothing to work from otherwise.
+    """
+    from app.models.chunk import Chunk
+    from app.models.document import Document
+    from app.workers.tasks_pipeline import enqueue_reevaluation
+
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if document.status != "ready":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Cannot reevaluate a document with status '{document.status}' - it "
+                "must have completed its first analysis pass (status 'ready') first."
+            ),
+        )
+    has_chunks = db.execute(
+        select(Chunk.id).where(Chunk.document_id == document_id).limit(1)
+    ).first()
+    if has_chunks is None:
+        raise HTTPException(
+            status_code=409,
+            detail="This document has no extracted content to re-evaluate.",
+        )
+
+    document.status = "analyzing"
+    db.commit()
+    db.refresh(document)
+    enqueue_reevaluation(str(document_id))
+    return document

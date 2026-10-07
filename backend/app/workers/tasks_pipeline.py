@@ -46,6 +46,22 @@ def enqueue_full_pipeline(document_id: str) -> None:
     workflow.delay()
 
 
+def enqueue_reevaluation(document_id: str) -> None:
+    """Entry point called from routes_analysis.py's "Reevaluate" action — re-runs only
+    the reduce pass (go_no_go, synopsis, risk_finder) against this document's existing
+    chunk_extractions, for when the company profile or reduce-pass prompts/logic have
+    changed since the document was last analyzed. Deliberately skips ingestion and the
+    map pass: the source PDF hasn't changed, so its already-extracted facts are still
+    valid, and re-paying for vision/extraction LLM calls would be wasted cost and time
+    for data that didn't need to change.
+
+    `_start_reduce_pass`'s `map_results` argument is never read by its body (it only
+    exists because that function doubles as a chord callback during the normal
+    pipeline) — an empty list here is a safe placeholder, not a real chord result.
+    """
+    _start_reduce_pass.delay([], document_id)
+
+
 @celery_app.task(
     name="start_map_and_reduce_for_document",
     bind=True,

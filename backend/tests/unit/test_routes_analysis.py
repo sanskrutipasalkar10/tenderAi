@@ -281,3 +281,73 @@ def test_resubmit_requires_auth() -> None:
         assert response.status_code == 401
     finally:
         app.dependency_overrides[get_current_user] = lambda: "test-user"
+
+
+def test_reevaluate_404s_when_document_not_found(_overrides) -> None:
+    _overrides.get.return_value = None
+
+    response = client.post(f"/documents/{uuid.uuid4()}/reevaluate")
+
+    assert response.status_code == 404
+
+
+def test_reevaluate_409s_when_document_is_not_ready(_overrides) -> None:
+    from app.models.document import Document
+
+    document_id = uuid.uuid4()
+    document = Document(
+        id=document_id, filename="t.pdf", status="analyzing", company_profile_id=None
+    )
+    _overrides.get.return_value = document
+
+    response = client.post(f"/documents/{document_id}/reevaluate")
+
+    assert response.status_code == 409
+    assert "analyzing" in response.json()["detail"]
+
+
+def test_reevaluate_409s_when_document_has_no_chunks(_overrides) -> None:
+    from app.models.document import Document
+
+    document_id = uuid.uuid4()
+    document = Document(id=document_id, filename="t.pdf", status="ready", company_profile_id=None)
+    _overrides.get.return_value = document
+    _overrides.execute.return_value.first.return_value = None
+
+    response = client.post(f"/documents/{document_id}/reevaluate")
+
+    assert response.status_code == 409
+    assert "no extracted content" in response.json()["detail"]
+
+
+def test_reevaluate_enqueues_reduce_pass_and_returns_the_document(_overrides) -> None:
+    from app.models.document import Document
+
+    document_id = uuid.uuid4()
+    document = Document(
+        id=document_id,
+        filename="t.pdf",
+        status="ready",
+        company_profile_id=None,
+        uploaded_at=datetime.now(timezone.utc),
+    )
+    _overrides.get.return_value = document
+    # Default MagicMock .first() is truthy, standing in for "at least one chunk row".
+
+    with patch("app.workers.tasks_pipeline.enqueue_reevaluation") as mock_enqueue:
+        response = client.post(f"/documents/{document_id}/reevaluate")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "analyzing"
+    assert document.status == "analyzing"
+    mock_enqueue.assert_called_once_with(str(document_id))
+    _overrides.commit.assert_called_once()
+
+
+def test_reevaluate_requires_auth() -> None:
+    app.dependency_overrides.pop(get_current_user, None)
+    try:
+        response = client.post(f"/documents/{uuid.uuid4()}/reevaluate")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: "test-user"

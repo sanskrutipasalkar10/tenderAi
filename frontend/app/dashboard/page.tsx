@@ -1,17 +1,28 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search, Upload } from "lucide-react";
+import { RefreshCw, Search, Upload } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DecisionBadge, StatusBadge } from "@/components/badges";
 import AppShell from "@/components/AppShell";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import { ApiError, getAnalysis, listDocuments } from "@/lib/api";
+import {
+  ApiError,
+  getAnalysis,
+  getDocumentStatus,
+  listDocuments,
+  reevaluateDocument,
+} from "@/lib/api";
 import type { DocumentUploadResponse, GoNoGoResult } from "@/lib/types";
+
+// How often to poll a single document's status while it's being re-evaluated —
+// matches documents/[id]/page.tsx's own polling interval, so "processing" feels
+// consistent everywhere in the app rather than introducing a second cadence.
+const REEVALUATE_POLL_INTERVAL_MS = 4000;
 
 const DECISION_BORDER: Record<GoNoGoResult["decision"], string> = {
   Go: "border-l-status-go",
@@ -33,6 +44,83 @@ function DashboardContent() {
   const [decisions, setDecisions] = useState<Record<string, GoNoGoResult["decision"]>>({});
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [reevaluating, setReevaluating] = useState<Set<string>>(new Set());
+  const pollIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  // Stop any still-running per-row polls if the user navigates away mid-reevaluation —
+  // otherwise each interval keeps firing and calling setState on an unmounted page.
+  useEffect(() => {
+    const intervals = pollIntervals.current;
+    return () => {
+      intervals.forEach(clearInterval);
+      intervals.clear();
+    };
+  }, []);
+
+  function pollUntilReevaluationFinishes(documentId: string) {
+    const interval = setInterval(async () => {
+      try {
+        const status = await getDocumentStatus(documentId);
+        setDocuments((docs) =>
+          docs?.map((d) => (d.id === documentId ? { ...d, status: status.status } : d)) ?? docs,
+        );
+        if (status.status !== "ready" && status.status !== "failed") return;
+
+        clearInterval(interval);
+        pollIntervals.current.delete(documentId);
+        setReevaluating((cur) => {
+          const next = new Set(cur);
+          next.delete(documentId);
+          return next;
+        });
+
+        if (status.status === "ready") {
+          try {
+            const analysis = await getAnalysis<GoNoGoResult>(documentId, "go_no_go");
+            setDecisions((cur) => ({ ...cur, [documentId]: analysis.result.decision }));
+          } catch {
+            // No go_no_go result yet (shouldn't normally happen once "ready") — leave
+            // the existing decision badge rather than erroring the whole row out.
+          }
+        }
+      } catch {
+        // A transient status-poll failure shouldn't spin the row forever — stop and
+        // let the user retry the reevaluate action if it's actually stuck.
+        clearInterval(interval);
+        pollIntervals.current.delete(documentId);
+        setReevaluating((cur) => {
+          const next = new Set(cur);
+          next.delete(documentId);
+          return next;
+        });
+      }
+    }, REEVALUATE_POLL_INTERVAL_MS);
+    pollIntervals.current.set(documentId, interval);
+  }
+
+  async function handleReevaluate(documentId: string) {
+    setReevaluating((cur) => new Set(cur).add(documentId));
+    setError(null);
+    try {
+      const updated = await reevaluateDocument(documentId);
+      setDocuments((docs) => docs?.map((d) => (d.id === documentId ? updated : d)) ?? docs);
+      // Clear the stale decision immediately so the row doesn't show last run's
+      // Go/No-Go badge while a fresh one is being computed.
+      setDecisions((cur) => {
+        const next = { ...cur };
+        delete next[documentId];
+        return next;
+      });
+      pollUntilReevaluationFinishes(documentId);
+    } catch (err) {
+      setReevaluating((cur) => {
+        const next = new Set(cur);
+        next.delete(documentId);
+        return next;
+      });
+      setError(err instanceof ApiError ? err.message : "Could not start reevaluation");
+    }
+  }
 
   useEffect(() => {
     listDocuments()
@@ -133,6 +221,7 @@ function DashboardContent() {
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Go/No-Go</th>
                     <th className="px-4 py-3">Uploaded</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -172,6 +261,20 @@ function DashboardContent() {
                             month: "short",
                             year: "numeric",
                           })}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          {doc.status === "ready" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              loading={reevaluating.has(doc.id)}
+                              onClick={() => handleReevaluate(doc.id)}
+                              icon={<RefreshCw className="h-3.5 w-3.5" />}
+                              aria-label="Re-run scoring against the current company profile and logic"
+                            >
+                              Reevaluate
+                            </Button>
+                          )}
                         </td>
                       </motion.tr>
                     );
