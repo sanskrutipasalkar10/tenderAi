@@ -17,13 +17,41 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ApiError, resubmitGoNoGo, reviewGoNoGo } from "@/lib/api";
-import type { GoNoGoResult } from "@/lib/types";
+import type { GoNoGoCriterionMatch, GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, DecisionBadge } from "./badges";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
 import Tabs, { TabIconChip } from "./ui/Tabs";
+import Tooltip from "./ui/Tooltip";
+
+// Built entirely from fields already on the match — no extra LLM call, and it works
+// immediately on every already-analyzed document, not just ones re-run after this was
+// added. "Why did this fail" was previously scattered across three separate table
+// cells (required / company value / the short gate name); this just reads the same
+// data back as one explanation.
+function explainCriterionStatus(match: GoNoGoCriterionMatch): string {
+  if (match.status === "pass") {
+    return `Met: the company profile's value ("${match.company_value}") satisfies the requirement ("${match.required}").`;
+  }
+  if (match.status === "insufficient_data") {
+    return (
+      `The company profile doesn't contain enough information to confirm this criterion ` +
+      `("${match.required}") is met — shown as "needs review" rather than a pass, since no ` +
+      `evidence is never treated as a free pass.` +
+      (match.gate ? ` Until reviewed, this counts as the "${match.gate}" hard gate.` : "")
+    );
+  }
+  // fail
+  return (
+    `Requires "${match.required}", but the company profile shows "${match.company_value}", ` +
+    `which doesn't satisfy it.` +
+    (match.gate
+      ? ` This triggers the "${match.gate}" hard gate — it forces a No-Go decision on its own, regardless of the overall score.`
+      : "")
+  );
+}
 
 const GAUGE_COLOR: Record<GoNoGoResult["decision"], string> = {
   Go: "stroke-status-go",
@@ -313,7 +341,9 @@ export default function GoNoGoCard({
                         <td className="px-5 py-3 text-muted-foreground">{match.required}</td>
                         <td className="px-5 py-3 text-muted-foreground">{match.company_value}</td>
                         <td className="px-5 py-3">
-                          <CriterionStatusBadge status={match.status} />
+                          <Tooltip content={explainCriterionStatus(match)}>
+                            <CriterionStatusBadge status={match.status} />
+                          </Tooltip>
                           {match.gate && (
                             <span className="mt-1 block text-xs text-severity-high">{match.gate}</span>
                           )}
