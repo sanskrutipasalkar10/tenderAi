@@ -8,9 +8,19 @@ import { ChevronLeftIcon } from "./icons";
  * (docs/DESIGN.md Revision 5) — an eyebrow label, a font-display title, an optional
  * subtitle/back-link/badge, and a trailing action, inside a bg-surface section that
  * spans the viewport before the contained body content below it. */
+const TITLE_SIZE = {
+  // The default everywhere else — short, static page titles ("Tender dashboard").
+  lg: "text-4xl md:text-[48px]",
+  // For dynamic, often-long titles (a real uploaded filename) — the same size reads
+  // fine for "Tender dashboard" but overwhelms the header once it's a 30+ character
+  // filename instead.
+  md: "text-2xl md:text-[32px]",
+};
+
 export default function PageHeader({
   eyebrow,
   title,
+  titleSize = "lg",
   accentPeriod = true,
   subtitle,
   onBack,
@@ -21,6 +31,7 @@ export default function PageHeader({
 }: {
   eyebrow?: string;
   title: string;
+  titleSize?: keyof typeof TITLE_SIZE;
   /** Appends a primary-colored "." after the title, matching the pulled design's
    * static page titles ("Tender dashboard.") — turned off for dynamic titles like a
    * tender's real filename, where an appended period would misleadingly change it. */
@@ -54,7 +65,9 @@ export default function PageHeader({
           <div>
             {eyebrow && <p className="eyebrow mb-3">{eyebrow}</p>}
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="max-w-4xl wrap-break-word font-display text-4xl font-semibold leading-tight md:text-[48px]">
+              <h1
+                className={`max-w-4xl wrap-break-word font-display font-semibold leading-tight ${TITLE_SIZE[titleSize]}`}
+              >
                 {title}
                 {accentPeriod && <span className="text-primary">.</span>}
               </h1>

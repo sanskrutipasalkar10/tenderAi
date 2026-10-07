@@ -72,6 +72,7 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
 
     return DocumentStatusResponse(
         id=document.id,
+        filename=document.filename,
         # Document.status is a plain `str` column; the DB CHECK constraint (migration
         # 0001) is what actually guarantees it's one of DocumentStatus's values.
         status=cast(DocumentStatus, document.status),

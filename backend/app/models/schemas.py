@@ -357,6 +357,7 @@ class DocumentStatusResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    filename: str
     status: DocumentStatus
     total_pages: int | None = None
     pages_processed: int = 0

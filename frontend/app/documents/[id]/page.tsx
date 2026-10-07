@@ -127,7 +127,9 @@ function DocumentDetail({ documentId }: { documentId: string }) {
     <div>
       <PageHeader
         eyebrow="TENDER / REVIEW"
-        title="Tender analysis"
+        title={status?.filename ?? "Tender analysis"}
+        titleSize="md"
+        accentPeriod={!status?.filename}
         onBack={() => router.back()}
         backLabel="All tenders"
         badge={status && <StatusBadge status={status.status} />}

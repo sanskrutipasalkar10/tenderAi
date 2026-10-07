@@ -22,6 +22,7 @@ export interface DocumentUploadResponse {
 
 export interface DocumentStatusResponse {
   id: string;
+  filename: string;
   status: DocumentStatus;
   total_pages: number | null;
   pages_processed: number;

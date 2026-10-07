@@ -56,6 +56,7 @@ def test_status_splits_main_document_pages_from_linked_documents_found() -> None
 
     assert response.status_code == 200
     body = response.json()
+    assert body["filename"] == "GeM-Bidding-x.pdf"
     assert body["pages_processed"] == 48
     assert body["main_document_pages"] == 6
     assert body["linked_documents_found"] == 2
