@@ -13,6 +13,15 @@ see the cost analysis this decision references):
   - "reduce" -> gemini-3.1-pro-preview  (strongest reasoning, final per-module judgment)
   - "vision" -> gemini-3.8-flash        (multimodal — same model as "map")
 
+A fourth task, "chat" (the tender/procurement terminology assistant, docs/DECISIONS.md),
+routes to the same model as "map" — originally routed to "reduce" on the assumption
+that explaining terms needed the same reasoning depth as a final judgment call, but
+that made every chat message pay "reduce"'s latency for what's usually a glossary
+lookup or a read of an already-computed synopsis. Switched to the fast/cheap tier for
+responsiveness (a real, felt latency complaint in practice) — the accepted tradeoff is
+slightly less reasoning depth on genuinely complex analytical questions, not yet
+confirmed to matter in practice.
+
 Every task also has a genuinely local Ollama fallback (docs/DECISIONS.md #32/#76) —
 used by app.llm.client.complete_for_task when the Gemini call fails after its own
 retries, so a transient Gemini outage/rate-limit degrades the pipeline instead of
@@ -33,7 +42,7 @@ from typing import Literal
 
 from app.core.config import settings
 
-Task = Literal["map", "reduce", "vision"]
+Task = Literal["map", "reduce", "vision", "chat"]
 
 GEMINI_MAP_MODEL = "gemini/gemini-3.8-flash"
 GEMINI_REDUCE_MODEL = "gemini/gemini-3.1-pro-preview"
@@ -52,6 +61,8 @@ def route(task: Task) -> str:
         return GEMINI_REDUCE_MODEL
     if task == "vision":
         return OLLAMA_LOCAL_VISION_MODEL if settings.use_local_vision else GEMINI_VISION_MODEL
+    if task == "chat":
+        return GEMINI_MAP_MODEL
     raise ValueError(f"Unknown task: {task!r}")
 
 
@@ -62,7 +73,7 @@ def route_fallback(task: Task) -> str:
     (use_local_vision), signaling to the caller there's nothing further to fall back
     to.
     """
-    if task in ("map", "reduce"):
+    if task in ("map", "reduce", "chat"):
         return OLLAMA_LOCAL_TEXT_MODEL
     if task == "vision":
         return OLLAMA_LOCAL_VISION_MODEL

@@ -5,6 +5,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.api import (
     routes_analysis,
     routes_auth,
+    routes_chat,
     routes_company_profiles,
     routes_health,
     routes_ingest,
@@ -52,5 +53,6 @@ app.include_router(routes_status.router, dependencies=_auth_dependency)
 app.include_router(routes_analysis.router, dependencies=_auth_dependency)
 app.include_router(routes_pages.router, dependencies=_auth_dependency)
 app.include_router(routes_company_profiles.router, dependencies=_auth_dependency)
+app.include_router(routes_chat.router, dependencies=_auth_dependency)
 
 Instrumentator().instrument(app).expose(app)

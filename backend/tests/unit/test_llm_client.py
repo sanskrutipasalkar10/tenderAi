@@ -226,3 +226,78 @@ def test_gemini_call_raises_provider_error_after_retries_exhausted(mock_post, _m
         complete("gemini/gemini-3.8-flash", "some prompt", num_retries=1)
 
     assert mock_post.call_count == 2
+
+
+# --- stream_chat_completion: fallback-before-first-chunk-only, per docs/DECISIONS.md -
+
+
+import json  # noqa: E402
+
+from app.llm.client import stream_chat_completion  # noqa: E402
+
+
+def _fake_streaming_response(lines: list[bytes], status_code: int = 200) -> MagicMock:
+    resp = MagicMock(status_code=status_code)
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = iter(lines)
+    return resp
+
+
+@patch("app.llm.client.requests.post")
+def test_stream_chat_completion_yields_gemini_chunks_in_order(mock_post) -> None:
+    lines = [
+        b'data: {"candidates": [{"content": {"parts": [{"text": "Hello"}]}}]}',
+        b"",
+        b'data: {"candidates": [{"content": {"parts": [{"text": " world"}]}}]}',
+    ]
+    mock_post.return_value = _fake_streaming_response(lines)
+
+    chunks = list(stream_chat_completion("some prompt"))
+
+    assert chunks == ["Hello", " world"]
+    assert mock_post.call_count == 1
+    assert "streamGenerateContent" in mock_post.call_args.args[0]
+
+
+@patch("app.llm.client.time.sleep")
+@patch("app.llm.client.requests.post")
+def test_stream_chat_completion_falls_back_before_first_chunk(mock_post, _mock_sleep) -> None:
+    failing_resp = MagicMock(status_code=500, text="down")
+    ollama_lines = [b'{"message": {"content": "fallback"}, "done": false}', b'{"done": true}']
+    mock_post.side_effect = [
+        failing_resp,  # primary, attempt 1
+        failing_resp,  # primary, attempt 2 (DEFAULT_NUM_RETRIES=1 -> 2 total attempts)
+        _fake_streaming_response(ollama_lines),  # fallback, succeeds
+    ]
+
+    chunks = list(stream_chat_completion("some prompt"))
+
+    assert chunks == ["fallback"]
+    last_call = mock_post.call_args_list[-1]
+    assert "/api/chat" in last_call.args[0]
+    assert last_call.kwargs["json"]["model"] == OLLAMA_LOCAL_TEXT_MODEL.split("/", 1)[1]
+
+
+@patch("app.llm.client.requests.post")
+def test_stream_chat_completion_does_not_retry_or_fall_back_mid_stream(mock_post) -> None:
+    """Once a real chunk has already been yielded to the caller, a failure on the next
+    line must propagate immediately — there's no way to un-send text already streamed,
+    so neither a retry nor a fallback call is attempted at that point.
+    """
+    resp = MagicMock(status_code=200)
+    resp.raise_for_status = MagicMock()
+    resp.iter_lines.return_value = iter(
+        [
+            b'data: {"candidates": [{"content": {"parts": [{"text": "partial"}]}}]}',
+            b"data: not-valid-json",
+        ]
+    )
+    mock_post.return_value = resp
+
+    gen = stream_chat_completion("some prompt")
+    assert next(gen) == "partial"
+    with pytest.raises(json.JSONDecodeError):
+        next(gen)
+
+    # Exactly one connection was ever opened — no retry, no fallback attempt.
+    assert mock_post.call_count == 1

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import AuthGuard from "./AuthGuard";
+import ChatWidget from "./ChatWidget";
 import Button from "./ui/Button";
 import { LogOutIcon, UploadIcon } from "./ui/icons";
 import { clearToken } from "@/lib/auth";
@@ -22,6 +23,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background text-foreground">
         <TopBar />
         <main>{children}</main>
+        <ChatWidget />
       </div>
     </AuthGuard>
   );

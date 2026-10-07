@@ -17,8 +17,10 @@ traffic takes the litellm branch.
 """
 
 import base64
+import json
 import random
 import time
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import requests
@@ -219,6 +221,236 @@ def _complete_ollama_native(
 
     logger.error("llm.call_failed_after_retries", model=model, error=str(last_error))
     raise ProviderError(f"{model} unavailable after {num_retries} retries: {last_error}")
+
+
+# --- Streaming (chat task only) -----------------------------------------------------
+#
+# Deliberately additive, not a `stream: bool` flag on complete()/complete_for_task():
+# changing those functions' return type would force every existing caller
+# (map_pass.py, reduce_pass.py, extract_vision.py — none of which need streaming) to
+# handle a str | Iterator[str] union for no benefit. These functions exist only for
+# app.api.routes_chat's "/chat/stream" endpoint.
+#
+# Retry/fallback can only happen BEFORE the first chunk is yielded — once text has
+# started streaming to a client it can't be un-sent. Each _stream_*_native generator
+# therefore retries (same backoff style as its non-streaming counterpart) only the
+# connect-and-validate-status phase, before its first `yield`; once real content starts
+# being parsed and yielded, a failure propagates immediately instead of retrying.
+#
+# `timeout` here bounds each individual socket read (requests' normal streaming
+# behavior), not total call duration like complete()'s blocking timeout does — a
+# separate wall-clock ceiling (3x timeout) is enforced in the iteration loop so a
+# pathologically slow drip can't hold a connection open indefinitely.
+
+
+# A safety ceiling against a runaway reply, not the primary length control (the prompt
+# itself asks for an appropriately thorough answer) — generous enough that it's rarely
+# the binding constraint for a real chat answer.
+DEFAULT_CHAT_MAX_OUTPUT_TOKENS = 800
+
+
+def stream_chat_completion(
+    prompt: str,
+    *,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    num_retries: int = DEFAULT_NUM_RETRIES,
+    max_output_tokens: int = DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+) -> Iterator[str]:
+    """Streaming entry point for the "chat" task. Tries the primary ("chat") model
+    first; if it fails before yielding anything, falls back to the local Ollama model
+    exactly like complete_for_task() does — but only up to that point. A failure after
+    the first chunk has already been yielded propagates uncaught: the caller (the
+    route's SSE generator) is expected to surface that as a visible "interrupted"
+    state, not retry silently, since there's no way to undo text already sent.
+    """
+    primary_model = router.route("chat")
+    fallback_model = router.route_fallback("chat")
+
+    with trace_llm_call(task="chat", prompt=prompt) as trace_result:
+        chunks: list[str] = []
+        used_model = primary_model
+        gen = _stream(
+            primary_model,
+            prompt,
+            timeout=timeout,
+            num_retries=num_retries,
+            max_output_tokens=max_output_tokens,
+        )
+        try:
+            first = next(gen, None)
+        except ProviderError as exc:
+            if fallback_model == primary_model:
+                trace_result["error"] = str(exc)
+                raise
+            logger.warning(
+                "llm.chat_stream_falling_back_to_local",
+                primary=primary_model,
+                fallback=fallback_model,
+                error=str(exc),
+            )
+            used_model = fallback_model
+            gen = _stream(
+                fallback_model,
+                prompt,
+                timeout=timeout,
+                num_retries=num_retries,
+                max_output_tokens=max_output_tokens,
+            )
+            first = next(gen, None)
+
+        if first is not None:
+            chunks.append(first)
+            yield first
+        for chunk in gen:
+            chunks.append(chunk)
+            yield chunk
+
+        trace_result["model"] = used_model
+        trace_result["output"] = "".join(chunks)
+        trace_result["fallback_used"] = used_model != primary_model
+
+
+def _stream(
+    model: str, prompt: str, *, timeout: int, num_retries: int, max_output_tokens: int
+) -> Iterator[str]:
+    """Dispatches by model prefix, same shape as complete()."""
+    if model.startswith("gemini/"):
+        yield from _stream_gemini_native(
+            model,
+            prompt,
+            timeout=timeout,
+            num_retries=num_retries,
+            max_output_tokens=max_output_tokens,
+        )
+    elif model.startswith("ollama/") or model.startswith("ollama_chat/"):
+        yield from _stream_ollama_native(
+            model,
+            prompt,
+            timeout=timeout,
+            num_retries=num_retries,
+            max_output_tokens=max_output_tokens,
+        )
+    else:
+        raise ProviderError(f"No streaming provider configured for model={model!r}.")
+
+
+def _connect_streaming(
+    *,
+    build_request: Callable[[], requests.Response],
+    model: str,
+    num_retries: int,
+) -> requests.Response:
+    """Shared connect-with-retry logic for both streaming providers — isolates the one
+    part of a streaming call that's still safely retryable (nothing has been yielded to
+    a caller yet) from the parse-and-yield loop that isn't.
+    """
+    last_error: Exception | None = None
+    for attempt in range(num_retries + 1):
+        try:
+            response = build_request()
+            if response.status_code == 429 or response.status_code >= 500:
+                raise requests.HTTPError(f"{response.status_code}: {response.text[:200]}")
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt < num_retries:
+                backoff = (2**attempt) + random.uniform(0, 1)
+                logger.warning(
+                    "llm.stream_connect_retry",
+                    model=model,
+                    attempt=attempt + 1,
+                    backoff_seconds=round(backoff, 2),
+                    error=str(exc),
+                )
+                time.sleep(backoff)
+
+    logger.error("llm.call_failed_after_retries", model=model, error=str(last_error))
+    raise ProviderError(f"{model} unavailable after {num_retries} retries: {last_error}")
+
+
+def _stream_ollama_native(
+    model: str, prompt: str, *, timeout: int, num_retries: int, max_output_tokens: int
+) -> Iterator[str]:
+    ollama_model = model.split("/", 1)[1]
+    payload: dict[str, Any] = {
+        "model": ollama_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        "options": {"temperature": 0.0, "num_predict": max_output_tokens},
+    }
+    response = _connect_streaming(
+        build_request=lambda: requests.post(
+            f"{settings.ollama_base_url}/api/chat", json=payload, timeout=timeout, stream=True
+        ),
+        model=model,
+        num_retries=num_retries,
+    )
+
+    start = time.monotonic()
+    for raw_line in response.iter_lines():
+        if time.monotonic() - start > timeout * 3:
+            raise ProviderError(f"{model} streaming response exceeded {timeout * 3}s total")
+        if not raw_line:
+            continue
+        chunk = json.loads(raw_line.decode("utf-8"))
+        content = chunk.get("message", {}).get("content", "")
+        if content:
+            yield content
+        if chunk.get("done"):
+            break
+
+
+def _stream_gemini_native(
+    model: str, prompt: str, *, timeout: int, num_retries: int, max_output_tokens: int
+) -> Iterator[str]:
+    gemini_model = model.split("/", 1)[1]
+    payload: dict[str, Any] = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.0,
+            "maxOutputTokens": max_output_tokens,
+            # Confirmed by live testing against this exact endpoint (not assumed):
+            # gemini-3.8-flash spends tokens on an invisible "thinking" step by
+            # default, counted against maxOutputTokens — a 300-token budget produced
+            # 285 thinking tokens and an 11-token, mid-sentence-truncated visible
+            # answer (usageMetadata.thoughtsTokenCount). Disabling it both fixed the
+            # truncation and cut a test call from ~8s to ~3.4s — thinking time was the
+            # real latency cost, not generation length. Chat has no need for this
+            # model's internal reasoning step; map_pass.py's own use of this same
+            # model is untouched here (a deliberate, separate decision, not silently
+            # bundled into a chat-latency fix).
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+    headers = {"x-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"}
+    url = f"{GEMINI_API_BASE}/{gemini_model}:streamGenerateContent?alt=sse"
+    response = _connect_streaming(
+        build_request=lambda: requests.post(
+            url, json=payload, headers=headers, timeout=timeout, stream=True
+        ),
+        model=model,
+        num_retries=num_retries,
+    )
+
+    start = time.monotonic()
+    for raw_line in response.iter_lines():
+        if time.monotonic() - start > timeout * 3:
+            raise ProviderError(f"{model} streaming response exceeded {timeout * 3}s total")
+        if not raw_line:
+            continue
+        line = raw_line.decode("utf-8")
+        if not line.startswith("data:"):
+            continue
+        body = json.loads(line[len("data:") :].strip())
+        candidates = body.get("candidates") or []
+        if not candidates:
+            block_reason = body.get("promptFeedback", {}).get("blockReason")
+            raise ProviderError(f"{model} returned no candidates (blockReason={block_reason!r})")
+        for part in candidates[0].get("content", {}).get("parts", []):
+            text_piece = part.get("text")
+            if text_piece:
+                yield text_piece
 
 
 def _complete_gemini_native(

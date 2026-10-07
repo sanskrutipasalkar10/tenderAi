@@ -1,6 +1,8 @@
 import { clearToken, getToken, setToken } from "./auth";
 import type {
   AnalysisModule,
+  ChatMessage,
+  ChatResponse,
   CompanyProfileResponse,
   CompanyProfileWrite,
   DocumentAnalysisResponse,
@@ -178,6 +180,81 @@ export function createCompanyProfile(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+// Ephemeral — the server never stores this conversation, so `history` (held in the
+// widget's own React state) is resent in full on every turn.
+export function sendChatMessage(
+  message: string,
+  documentId: string | null,
+  history: ChatMessage[],
+): Promise<ChatResponse> {
+  return apiFetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, document_id: documentId, history }),
+  });
+}
+
+// Can't go through apiFetch (it always calls .json() on the full body) or EventSource
+// (can't send a POST body) — reads the response as an incrementally-decoded stream
+// instead, calling the matching handler as each `data: {...}` frame arrives. Mirrors
+// apiFetch's own 401 handling since it can't reuse that function directly.
+export async function streamChatMessage(
+  message: string,
+  documentId: string | null,
+  history: ChatMessage[],
+  handlers: {
+    onDelta: (text: string) => void;
+    onDone: () => void;
+    onError: (message: string) => void;
+  },
+  signal?: AbortSignal,
+): Promise<void> {
+  const token = getToken();
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message, document_id: documentId, history }),
+    signal,
+  });
+
+  if (response.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, "Not authenticated");
+  }
+  if (!response.ok || !response.body) {
+    throw new ApiError(response.status, "Chat stream failed to start");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    // {stream: true} is load-bearing — a multi-byte UTF-8 character can land split
+    // across two chunk boundaries, and this keeps the trailing partial byte(s) buffered
+    // in the decoder's own internal state until the rest arrives, instead of mangling it.
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = JSON.parse(line.slice("data:".length).trim());
+      if (payload.delta) handlers.onDelta(payload.delta);
+      else if (payload.done) handlers.onDone();
+      else if (payload.error) handlers.onError(payload.error);
+    }
+  }
 }
 
 export function updateCompanyProfile(

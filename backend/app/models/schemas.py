@@ -390,6 +390,25 @@ class DocumentAnalysisResponse(BaseModel):
     created_at: datetime
 
 
+class ChatMessage(BaseModel):
+    """One turn of the tender/procurement assistant's conversation. The client holds
+    the full history (no server-side persistence, a deliberate product decision) and
+    resends it each turn — this model is just the wire shape for one turn."""
+
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    document_id: UUID | None = None
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
 class PageContentResponse(BaseModel):
     """The citation-verification UI's actual payload (docs/SPEC.md's HITL note) — what
     a user sees after clicking a `page_ref`. `has_image` tells the frontend whether to

@@ -184,6 +184,17 @@ export interface PageContentResponse {
   attachment_filename: string | null;
 }
 
+// --- chat assistant (ephemeral — no server-side persistence) ---------------------
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+}
+
 // --- company_profiles --------------------------------------------------------
 
 export interface CompanyProfilePastProject {
