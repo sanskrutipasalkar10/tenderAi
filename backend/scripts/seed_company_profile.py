@@ -50,6 +50,8 @@ PROFILE_FIELDS = (
     "bank_details",
     "employment_count",
     "government_grants",
+    # TQ-scoring knowledge base (migration 0006).
+    "technical_capability_narrative",
 )
 
 
