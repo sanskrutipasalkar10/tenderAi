@@ -240,6 +240,9 @@ def test_go_no_go_all_pass_yields_go_decision(monkeypatch) -> None:
         ],
         next_steps=["Prepare EMD"],
         factor_scores=dict.fromkeys(reduce_pass.BID_DECISION_FACTOR_WEIGHTS, 100),
+        factor_score_reasons=dict.fromkeys(
+            reduce_pass.BID_DECISION_FACTOR_WEIGHTS, "Strong — all criteria pass."
+        ),
     )
     monkeypatch.setattr(
         reduce_pass,
@@ -256,6 +259,12 @@ def test_go_no_go_all_pass_yields_go_decision(monkeypatch) -> None:
     assert analysis.result["decision"] == "Go"
     assert analysis.result["score"] == 100
     assert analysis.result["gaps"] == []
+    # The model's own stated reason for each factor score must reach the stored
+    # result, not just the bare numbers — a per-factor explanation is only useful if
+    # it actually survives the round trip into document_analysis.result.
+    assert (
+        analysis.result["factor_score_reasons"]["PQ Eligibility"] == "Strong — all criteria pass."
+    )
     assert analysis in db.added
 
 

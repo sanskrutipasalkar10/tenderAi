@@ -125,14 +125,25 @@ _SEVERITY_WEIGHT = {"HIGH": 30, "MEDIUM": 15, "LOW": 5}
 # row, including why these are Python constants rather than DB reference tables in
 # this phase). Verbatim gate names from that plan's Section 3. ------------------------
 HARD_FAIL_GATES = (
-    "Mandatory PQ experience unavailable",
     "Turnover not met and no valid exemption",
     "Mandatory certification unavailable",
     "Mandatory OEM authorization unavailable",
-    "Mandatory manpower unavailable",
     "Required consortium/partner route unavailable",
     "Unacceptable legal/commercial terms",
 )
+# Two gates were deliberately removed from this list (not an oversight):
+# - "Mandatory manpower unavailable": a staffing shortfall is resolvable by hiring
+#   after award, unlike turnover/certification/OEM-authorization, which aren't fixable
+#   on that timeline. Still pulls down "Key Manpower" below.
+# - "Mandatory PQ experience unavailable": the company profile's past_projects now
+#   includes demonstrated-capability entries (internal case studies/demos, each tagged
+#   counts_as_experience=False) alongside formally-contracted client work. A PQ
+#   criterion that would previously hard-fail on "zero matching experience" can now be
+#   satisfied informationally by that capability evidence instead — the prompt
+#   instructs the model never to present a demonstration as contracted client
+#   experience, but it may use it as evidence a criterion isn't a flat unknown. A
+#   genuine zero-evidence case still scores low on Similar Experience/PQ Eligibility
+#   below, it just no longer forces an automatic No-Go on its own.
 
 # The 8-factor Bid/No-Bid weighted score (docs/pq-tq-framework-implementation-plan.md
 # §4, matching Table 26 of docs/sutf-company-profile-decision-grade.docx exactly —
@@ -501,6 +512,7 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
             gaps=triggered_gates,
             next_steps=llm_result.next_steps,
             factor_scores=llm_result.factor_scores,
+            factor_score_reasons=llm_result.factor_score_reasons,
             pq_checklist=_run_pq_checklist(facts, company_profile, document.id),
             documents_required=documents_required,
             tq_score=round(compute_tq_score(tq_result.factor_scores)) if tq_result else None,
@@ -590,10 +602,8 @@ def _run_tq_scoring(
     never block the main go_no_go decision — catches ProviderError, returns None,
     logs a warning.
     """
-    factors_list = "\n".join(f"- {c}" for c in TQ_FACTOR_WEIGHTS)
     prompt = (
         load_prompt("reduce", "v1_tq_scoring")
-        .replace("{factors}", factors_list)
         .replace("{company_profile}", _format_company_profile(company_profile))
         .replace("{content}", _format_facts_content(facts))
     )
@@ -701,6 +711,7 @@ def rescore_go_no_go(db: Session, document: Document, company_profile: dict) -> 
     updated_result = {
         **result,
         "factor_scores": llm_result.factor_scores,
+        "factor_score_reasons": llm_result.factor_score_reasons,
         "score": round(weighted_score),
         "decision": decision,
         "gaps": triggered_gates,

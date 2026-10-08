@@ -162,6 +162,10 @@ class GoNoGoLLMResult(BaseModel):
     criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
     factor_scores: dict[str, int] = Field(default_factory=dict)
+    # One sentence per factor explaining the score the model itself just computed —
+    # grounded in the same evidence it already cited in criteria_matches, not a
+    # frontend guess reverse-engineered from the numbers after the fact.
+    factor_score_reasons: dict[str, str] = Field(default_factory=dict)
 
 
 class GoNoGoRescoreLLMResult(BaseModel):
@@ -175,6 +179,7 @@ class GoNoGoRescoreLLMResult(BaseModel):
     """
 
     factor_scores: dict[str, int] = Field(default_factory=dict)
+    factor_score_reasons: dict[str, str] = Field(default_factory=dict)
 
 
 # "not_applicable" (distinct from GoNoGoStatus) — the fixed 28-item PQ checklist
@@ -236,6 +241,9 @@ class GoNoGoResult(BaseModel):
     # docs/DECISIONS.md). None only for the pre-LLM short-circuit paths (missing
     # profile fields / no criteria found).
     factor_scores: dict[str, int] | None = None
+    # One sentence per factor explaining its score — same None-only-on-short-circuit
+    # rule as factor_scores above, since there's nothing to explain without a real call.
+    factor_score_reasons: dict[str, str] | None = None
     # The fixed 28-item PQ checklist (docs/DECISIONS.md) — additive, informational
     # only. None on the short-circuit paths above, or if the separate LLM call that
     # produces it failed (degrades gracefully, never blocks the main decision).

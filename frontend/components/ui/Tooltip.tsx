@@ -12,7 +12,18 @@ const VIEWPORT_MARGIN = 12;
  * that container's edge no matter which side it's anchored to, since overflow-x-auto
  * clips both axes. Positioned from the trigger's real screen coordinates instead, and
  * clamped so it never runs off either edge of the viewport. */
-export default function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+export default function Tooltip({
+  content,
+  children,
+  block = false,
+}: {
+  content: ReactNode;
+  children: ReactNode;
+  /** The default `inline-block` wrapper shrink-wraps to content width, right for a
+   * small trigger like a status badge. A wide trigger (e.g. a full-width row) needs
+   * `block` instead, or its flex/width-filling children collapse to content width too. */
+  block?: boolean;
+}) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const [placement, setPlacement] = useState<{ top: number; left: number; above: boolean } | null>(
     null,
@@ -37,7 +48,14 @@ export default function Tooltip({ content, children }: { content: ReactNode; chi
   }
 
   return (
-    <span ref={triggerRef} className="inline-block" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
+    <span
+      ref={triggerRef}
+      className={block ? "block w-full" : "inline-block"}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
       {children}
       {placement &&
         typeof document !== "undefined" &&

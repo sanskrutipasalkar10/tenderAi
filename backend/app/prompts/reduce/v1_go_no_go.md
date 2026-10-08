@@ -14,6 +14,16 @@ For EACH criterion listed, decide whether the company's profile satisfies it:
 - `company_value`: the specific value from the company profile that is relevant to
   this criterion (e.g. "INR 72 Crore", "Held since 2019"). If the company profile has
   no value relevant to this criterion, say so explicitly rather than leaving it blank.
+  Some `past_projects` entries are tagged `"counts_as_experience": false` (an internal
+  capability demonstration — a case study or internal project with no external client
+  or purchase order, not formally contracted work). You may cite one of these as
+  evidence the company has relevant technical capability, but you must say so
+  explicitly (e.g. "No contracted client project matches directly; company has
+  demonstrated this capability internally via [name], not a client-delivered
+  engagement") — never describe a demonstration as a completed client assignment,
+  a government contract, or anything else that implies a real client/PO stood behind
+  it. A criterion that explicitly requires a completed CLIENT or GOVERNMENT assignment
+  is not satisfied by a demonstration alone.
 - `criterion_type`: `"eligibility"` if this criterion is about the COMPANY's own
   capability or attributes (turnover, certifications, past experience, manpower,
   partner/OEM arrangement — anything a company profile field could actually answer).
@@ -35,16 +45,12 @@ For EACH criterion listed, decide whether the company's profile satisfies it:
   matter its status. If this specific eligibility gap means the tender should be an
   automatic NO-BID, set `gate` to the exact matching name from this list, otherwise
   `null`:
-  - "Mandatory PQ experience unavailable" — a required prior-experience criterion with
-    no qualifying company experience at all.
   - "Turnover not met and no valid exemption" — turnover requirement not met, and
     nothing in the company profile establishes an MSME/startup/other stated exemption.
   - "Mandatory certification unavailable" — a certification the tender states as
     mandatory (not merely preferred) is missing.
   - "Mandatory OEM authorization unavailable" — the tender requires an OEM
     authorization letter the company profile shows no evidence of.
-  - "Mandatory manpower unavailable" — a minimum headcount/key-personnel requirement
-    the company profile's numbers don't meet.
   - "Required consortium/partner route unavailable" — the tender requires bidding via
     consortium/JV and the company profile shows no such arrangement.
   - "Unacceptable legal/commercial terms" — the tender itself states a condition
@@ -52,7 +58,16 @@ For EACH criterion listed, decide whether the company's profile satisfies it:
     face, unrelated to the company profile.
   A failed or insufficient-data eligibility criterion that doesn't clearly match any of
   these stays `null` — it should pull down the relevant factor score below, not force
-  a gate.
+  a gate. This deliberately includes two kinds of gap that look disqualifying on their
+  own but aren't, for this bid-decision purpose:
+  - A staffing/key-personnel shortfall (minimum headcount, named experts, etc.) —
+    staffing can be hired after award. Let it pull down `Key Manpower` below instead.
+  - A prior-experience/PQ criterion with no exactly-matching contracted project — if
+    the company profile shows no qualifying experience at all, including no relevant
+    demonstrated capability, score it low on `Similar Experience`/`PQ Eligibility`
+    rather than gating; if it does show relevant demonstrated capability (a
+    `counts_as_experience: false` entry), cite that explicitly per the `company_value`
+    instruction above instead of defaulting to "no experience."
 
 Also score these 8 factors, each 0-100, based only on the evidence in the criteria and
 company profile given below (never invent evidence; a factor with no supporting
@@ -73,6 +88,14 @@ evidence scores low, it is not left out):
   question, score it on fit.
 - `Partner/OEM Availability`: whether the company profile shows any partner/OEM/
   consortium arrangement relevant to this tender, if one is implied as needed.
+
+For EACH of the 8 factors, also give a `factor_score_reasons` entry: ONE sentence
+explaining that specific score, naming the actual criterion/evidence that drove it
+(e.g. "Low because the tender's 3 PQ experience criteria are all insufficient_data —
+no matching contracted project or demonstrated capability on file"), not a restatement
+of the number or a generic comment. Every one of the 8 factors needs an entry, even a
+strong one (e.g. "Strong — all 4 certification criteria pass, including the tender's
+one mandatory ISO requirement").
 
 Do not decide Go/No-Go yourself and do not compute an overall score — only report each
 criterion's pass/fail/gate comparison and the 8 factor scores; the final decision and
@@ -98,6 +121,11 @@ Respond with ONLY a JSON object matching this exact shape, no other text:
     "PQ Eligibility": 0, "Similar Experience": 0, "Technical Capability": 0,
     "Government/PSU Experience": 0, "Key Manpower": 0, "Financial Capability": 0,
     "Strategic Relevance": 0, "Partner/OEM Availability": 0
+  },
+  "factor_score_reasons": {
+    "PQ Eligibility": "...", "Similar Experience": "...", "Technical Capability": "...",
+    "Government/PSU Experience": "...", "Key Manpower": "...", "Financial Capability": "...",
+    "Strategic Relevance": "...", "Partner/OEM Availability": "..."
   }
 }
 ```

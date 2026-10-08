@@ -111,6 +111,24 @@ function buildJustification(result: GoNoGoResult): string {
   }
 }
 
+// A low score with no triggered gate (e.g. rfpesgcomplete.pdf: 29/100, no gaps) left
+// buildJustification's text as the only "why" shown beside the circle — genuinely
+// uninformative on its own, since the real reason is spread across 8 factor bars the
+// user has to scroll past Decision factors to see. Surfacing the weakest few here
+// too means "why is this low" has a real answer without scrolling, gate or no gate.
+const WEAK_FACTOR_THRESHOLD = 40;
+function weakestFactors(
+  factorScores: Record<string, number> | null,
+  reasons: Record<string, string> | null,
+): { factor: string; score: number; reason: string | null }[] {
+  if (!factorScores) return [];
+  return Object.entries(factorScores)
+    .filter(([, score]) => score < WEAK_FACTOR_THRESHOLD)
+    .sort(([, a], [, b]) => a - b)
+    .slice(0, 3)
+    .map(([factor, score]) => ({ factor, score, reason: reasons?.[factor] ?? null }));
+}
+
 const SUB_TABS = [
   { id: "overview", label: "Overview", icon: <TabIconChip icon={LayoutDashboard} /> },
   { id: "details", label: "Details", icon: <TabIconChip icon={ListChecks} /> },
@@ -132,6 +150,7 @@ export default function GoNoGoCard({
   const eligibility = result.criteria_matches
     .map((match, i) => ({ match, i }))
     .filter(({ match }) => match.criterion_type !== "procedural");
+  const weakFactors = weakestFactors(result.factor_scores, result.factor_score_reasons);
 
   // Resubmitting re-asks the model for fresh factor_scores grounded in whatever's
   // been reviewed so far — pointless to offer before anything has actually been
@@ -176,6 +195,23 @@ export default function GoNoGoCard({
                 <p className="max-w-md text-center text-sm text-muted-foreground sm:text-left">
                   {buildJustification(result)}
                 </p>
+                {weakFactors.length > 0 && (
+                  <div className="mt-2 w-full max-w-md space-y-1.5">
+                    {weakFactors.map(({ factor, score, reason }) => (
+                      <div
+                        key={factor}
+                        className="rounded border border-severity-high/30 bg-severity-high/5 px-2.5 py-1.5 text-left"
+                      >
+                        <span className="text-xs font-semibold text-severity-high">
+                          {factor} — {score}/100
+                        </span>
+                        {reason && (
+                          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{reason}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </Card>
@@ -189,11 +225,9 @@ export default function GoNoGoCard({
               <div className="space-y-2">
                 {Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => {
                   const score = Math.max(0, Math.min(100, result.factor_scores?.[factor] ?? 0));
-                  return (
-                    <div
-                      key={factor}
-                      className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5"
-                    >
+                  const reason = result.factor_score_reasons?.[factor];
+                  const row = (
+                    <div className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5">
                       <TabIconChip icon={FACTOR_ICON[factor]} />
                       <span className="w-40 flex-none truncate text-xs font-medium text-foreground">
                         {factor}
@@ -209,6 +243,13 @@ export default function GoNoGoCard({
                         <span className="font-normal text-muted-foreground"> · {weight}%</span>
                       </span>
                     </div>
+                  );
+                  return reason ? (
+                    <Tooltip key={factor} content={reason} block>
+                      {row}
+                    </Tooltip>
+                  ) : (
+                    <div key={factor}>{row}</div>
                   );
                 })}
               </div>

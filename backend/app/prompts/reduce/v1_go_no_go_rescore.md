@@ -14,6 +14,11 @@ company profile given below (never invent evidence; a factor with no supporting
 evidence scores low, it is not left out):
 {factors}
 
+For EACH factor, also give a `factor_score_reasons` entry: ONE sentence explaining
+that specific score, naming the actual criterion/evidence that drove it — if the
+review changed the picture (e.g. a criterion a human confirmed as passing), say so.
+Every factor needs an entry, even a strong one.
+
 Do not decide Go/No-Go yourself and do not compute an overall score — only report the 8
 factor scores; the final decision and weighted score are computed from these, not asked
 of you directly.
@@ -29,6 +34,11 @@ Respond with ONLY a JSON object matching this exact shape, no other text:
     "PQ Eligibility": 0, "Similar Experience": 0, "Technical Capability": 0,
     "Government/PSU Experience": 0, "Key Manpower": 0, "Financial Capability": 0,
     "Strategic Relevance": 0, "Partner/OEM Availability": 0
+  },
+  "factor_score_reasons": {
+    "PQ Eligibility": "...", "Similar Experience": "...", "Technical Capability": "...",
+    "Government/PSU Experience": "...", "Key Manpower": "...", "Financial Capability": "...",
+    "Strategic Relevance": "...", "Partner/OEM Availability": "..."
   }
 }
 ```

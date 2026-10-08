@@ -114,6 +114,9 @@ export interface GoNoGoResult {
   gaps: string[];
   next_steps: string[];
   factor_scores: GoNoGoFactorScores | null;
+  // One sentence per factor explaining its score, from the same model call — null
+  // only alongside factor_scores on the pre-LLM short-circuit paths.
+  factor_score_reasons: Record<string, string> | null;
   // The fixed 28-item PQ checklist (backend/app/pipeline/reduce_pass.py's
   // PQ_CHECKLIST_CATEGORIES) — informational only, null if the separate LLM call that
   // produces it failed (degrades gracefully, never blocks the main decision).
