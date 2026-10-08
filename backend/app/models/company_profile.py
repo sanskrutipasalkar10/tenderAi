@@ -52,6 +52,12 @@ class CompanyProfile(Base):
     bank_details: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"))
     employment_count: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"))
     government_grants: Mapped[list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"))
+    # One free-text entry per TQ scoring factor (migration 0006) — primary evidence
+    # for the 7 TQ factors that ask about a proposed technical response rather than a
+    # static company attribute. See app.pipeline.reduce_pass.TQ_FACTOR_WEIGHTS.
+    technical_capability_narrative: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite")
+    )
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     # onupdate is an ORM-level behavior (touches the column on every SQLAlchemy

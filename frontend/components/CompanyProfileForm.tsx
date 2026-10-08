@@ -259,6 +259,11 @@ export default function CompanyProfileForm({
         : null;
 
     const payload: CompanyProfileWrite = {
+      // This form has no UI for the technical-capability knowledge base yet (backend
+      // migration 0006) — pass through whatever's already on the profile rather than
+      // defaulting to null, since PUT is a full overwrite, not a partial patch; a save
+      // from this form would otherwise silently wipe it.
+      technical_capability_narrative: existing?.technical_capability_narrative ?? null,
       company_name: companyName,
       max_capacity_pct: maxCapacityPct ? Number(maxCapacityPct) : null,
       certifications: fromCommaList(certifications),

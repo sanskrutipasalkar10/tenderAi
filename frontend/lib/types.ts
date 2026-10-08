@@ -270,6 +270,10 @@ export interface CompanyProfileWrite {
   bank_details: CompanyProfileBankDetails | null;
   employment_count: CompanyProfileEmploymentCount | null;
   government_grants: CompanyProfileGovernmentGrant[] | null;
+  // One free-text entry per TQ scoring factor (backend migration 0006), keyed by the
+  // exact factor name — primary evidence for the TQ factors that ask about a proposed
+  // technical response rather than a static company attribute.
+  technical_capability_narrative: Record<string, string> | null;
 }
 
 export interface CompanyProfileResponse extends CompanyProfileWrite {

@@ -69,7 +69,7 @@ def test_every_other_field_is_sent() -> None:
         "pan", "gstin", "udyam_registration_number", "msme_classification",
         "ngo_darpan_id", "authorised_capital_inr", "paid_up_capital_inr",
         "net_worth_inr", "directors", "bank_details", "employment_count",
-        "government_grants",
+        "government_grants", "technical_capability_narrative",
     }
     assert set(result.keys()) == expected_fields
     assert result["pan"] == "AAZCS2482C"

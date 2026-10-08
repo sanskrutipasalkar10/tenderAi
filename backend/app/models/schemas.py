@@ -470,6 +470,9 @@ class CompanyProfileWrite(BaseModel):
     bank_details: dict | None = None
     employment_count: dict | None = None
     government_grants: list | None = None
+    # One free-text entry per TQ scoring factor (migration 0006) — keyed by the exact
+    # factor names in app.pipeline.reduce_pass.TQ_FACTOR_WEIGHTS.
+    technical_capability_narrative: dict | None = None
 
     @model_validator(mode="after")
     def _turnover_source_required_with_turnover(self) -> "CompanyProfileWrite":
@@ -513,5 +516,6 @@ class CompanyProfileResponse(BaseModel):
     bank_details: dict | None = None
     employment_count: dict | None = None
     government_grants: list | None = None
+    technical_capability_narrative: dict | None = None
     created_at: datetime
     updated_at: datetime

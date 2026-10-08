@@ -159,5 +159,6 @@ def profile_to_dict(profile) -> dict:
         "bank_details": profile.bank_details,
         "employment_count": profile.employment_count,
         "government_grants": profile.government_grants,
+        "technical_capability_narrative": profile.technical_capability_narrative,
         # unconfirmed_org_turnover_inr: deliberately excluded, see docstring above.
     }

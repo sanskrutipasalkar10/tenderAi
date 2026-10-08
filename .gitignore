@@ -38,6 +38,11 @@ docs/C4i4_Tender_PQ_TQ_BID_NO_BID_Framework*.xlsx
 # reasoning as above.
 backend/scripts/local_pipeline_test_output/
 
+# Source data behind migration 0006's technical_capability_narrative seed — real
+# statutory/business documents for the same real company as docs/C4i4_company_docs/
+# above, same reasoning: business-sensitive, kept local only, repo is public.
+Company_profile/
+
 # Node / Next.js
 node_modules/
 frontend/.next/
