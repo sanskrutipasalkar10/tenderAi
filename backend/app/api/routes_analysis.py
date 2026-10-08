@@ -139,9 +139,25 @@ def reevaluate_document(document_id: uuid.UUID, db: Session = Depends(get_db)):
     actually sets today — so this never races with a first-time analysis still in
     flight. Also requires at least one chunk to exist, since the reduce pass reads from
     chunk_extractions and has nothing to work from otherwise.
+
+    Deletes the document's existing document_analysis rows before re-enqueueing, rather
+    than leaving them in place for _upsert_analysis to overwrite in place once each
+    module finishes. Found in practice: with the old rows left sitting there,
+    modules_ready (DocumentStatusResponse, computed live as "distinct document_analysis
+    rows for this document") reads 3/3 for the entire reevaluation, since the stale
+    rows already satisfy that count — the frontend's processing-progress UI
+    (ProcessingPipeline/ProcessingLog) only renders a line when a number climbs from
+    its previous poll, so it had nothing to show climbing and looked permanently
+    "already done." Clearing them first means modules_ready genuinely goes back to 0
+    and climbs to 3 as the new results land, the same way it does on a first-time run —
+    no frontend change needed, the existing progress UI already does the right thing
+    once the backend state actually reflects "not yet re-analyzed."
     """
+    from sqlalchemy import delete
+
     from app.models.chunk import Chunk
     from app.models.document import Document
+    from app.models.document_analysis import DocumentAnalysis
     from app.workers.tasks_pipeline import enqueue_reevaluation
 
     document = db.get(Document, document_id)
@@ -164,6 +180,7 @@ def reevaluate_document(document_id: uuid.UUID, db: Session = Depends(get_db)):
             detail="This document has no extracted content to re-evaluate.",
         )
 
+    db.execute(delete(DocumentAnalysis).where(DocumentAnalysis.document_id == document_id))
     document.status = "analyzing"
     db.commit()
     db.refresh(document)

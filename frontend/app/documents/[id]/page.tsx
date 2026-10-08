@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, ClipboardCheck, FileDown, FileText, Scale } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, FileDown, FileText, RefreshCw, Scale } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
@@ -15,7 +15,7 @@ import { StatusBadge } from "@/components/badges";
 import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
 import Tabs, { TabIconChip } from "@/components/ui/Tabs";
-import { ApiError, getAllAnalysis, getDocumentStatus } from "@/lib/api";
+import { ApiError, getAllAnalysis, getDocumentStatus, reevaluateDocument } from "@/lib/api";
 import type {
   AnalysisModule,
   DocumentAnalysisResponse,
@@ -75,46 +75,81 @@ function DocumentDetail({ documentId }: { documentId: string }) {
   const [analyses, setAnalyses] = useState<DocumentAnalysisResponse[]>([]);
   const [activeTab, setActiveTab] = useState<UiTab>("go_no_go");
   const [error, setError] = useState<string | null>(null);
-  const wasReady = useRef(false);
+  const [startingReevaluate, setStartingReevaluate] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelledRef = useRef(false);
+
+  function stopPolling() {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }
 
   // Polls the real, persisted backend status (never trusts client-held state — a back/
   // forward navigation or a page reload always re-syncs to what the server actually
   // recorded, per CLAUDE.md hard rule 5). Stops once the pipeline reaches a terminal
-  // state so an already-finished document doesn't poll forever.
-  useEffect(() => {
-    let cancelled = false;
+  // state so an already-finished document doesn't poll forever — and, importantly,
+  // restartable: a plain one-shot "stop at terminal" loop would never notice a
+  // Reevaluate triggered after the document was already "ready" once, since the
+  // interval that would catch the status flipping back to "analyzing" is gone by then.
+  function startPolling() {
+    stopPolling();
 
     async function poll() {
       try {
         const s = await getDocumentStatus(documentId);
-        if (cancelled) return;
+        if (cancelledRef.current) return;
         setStatus(s);
         // A transient poll failure (e.g. the DB connection blipping) shouldn't leave a
         // permanent error banner once a later poll succeeds — the pipeline itself kept
         // making real progress the whole time, per the status this just received.
         setError(null);
-        if (s.status === "ready" && !wasReady.current) {
-          wasReady.current = true;
+        if (s.status === "ready") {
           getAllAnalysis(documentId)
-            .then((a) => !cancelled && setAnalyses(a))
+            .then((a) => !cancelledRef.current && setAnalyses(a))
             .catch(() => {});
         }
         if (TERMINAL_STATUSES.has(s.status)) {
-          clearInterval(interval);
+          stopPolling();
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Load failed");
+        if (!cancelledRef.current) setError(err instanceof ApiError ? err.message : "Load failed");
       }
     }
 
     poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
+  }
 
+  useEffect(() => {
+    cancelledRef.current = false;
+    startPolling();
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      cancelledRef.current = true;
+      stopPolling();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startPolling closes over documentId fresh each render; only documentId itself should restart the effect
   }, [documentId]);
+
+  async function handleReevaluate() {
+    setStartingReevaluate(true);
+    setError(null);
+    try {
+      const updated = await reevaluateDocument(documentId);
+      // The backend clears this document's old analysis rows as part of starting a
+      // reevaluation (so modules_ready genuinely counts back up from 0, not a stale
+      // 3/3) — drop them here too so a render between now and the next poll can't
+      // show a results tab for data that no longer exists server-side.
+      setStatus((cur) => (cur ? { ...cur, status: updated.status } : cur));
+      setAnalyses([]);
+      startPolling();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not start reevaluation");
+    } finally {
+      setStartingReevaluate(false);
+    }
+  }
 
   const goNoGoAnalysis = analyses.find((a) => a.module === "go_no_go");
   const activeResult =
@@ -142,13 +177,23 @@ function DocumentDetail({ documentId }: { documentId: string }) {
         }
         action={
           status?.status === "ready" && (
-            <Button
-              href={`/documents/${documentId}/report`}
-              variant="outline"
-              icon={<FileDown className="h-4 w-4" />}
-            >
-              Download report
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                loading={startingReevaluate}
+                onClick={() => void handleReevaluate()}
+                icon={<RefreshCw className="h-4 w-4" />}
+              >
+                Reevaluate
+              </Button>
+              <Button
+                href={`/documents/${documentId}/report`}
+                variant="outline"
+                icon={<FileDown className="h-4 w-4" />}
+              >
+                Download report
+              </Button>
+            </div>
           )
         }
       />

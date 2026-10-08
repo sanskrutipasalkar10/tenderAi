@@ -341,6 +341,15 @@ def test_reevaluate_enqueues_reduce_pass_and_returns_the_document(_overrides) ->
     assert response.json()["status"] == "analyzing"
     assert document.status == "analyzing"
     mock_enqueue.assert_called_once_with(str(document_id))
+
+    # The document's existing document_analysis rows must be cleared before
+    # re-enqueueing — left in place, modules_ready would read 3/3 for the whole
+    # reevaluation (the old rows already satisfy that count), and the frontend's
+    # progress UI only renders a line when a number climbs from its previous poll.
+    executed_statements = [str(call.args[0]) for call in _overrides.execute.call_args_list]
+    assert any(
+        "DELETE FROM document_analysis" in sql for sql in executed_statements
+    ), executed_statements
     _overrides.commit.assert_called_once()
 
 
