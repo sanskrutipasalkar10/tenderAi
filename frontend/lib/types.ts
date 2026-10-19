@@ -37,6 +37,9 @@ export interface DocumentStatusResponse {
   attachments_processed: number;
   chunks_total: number;
   chunks_mapped: number;
+  // Of chunks_mapped, how many reused a cached extraction (duplicate content already
+  // seen elsewhere) instead of a fresh LLM call.
+  chunks_deduped: number;
   modules_ready: AnalysisModule[];
   // Set only when status is "failed" — why the pipeline stopped, so the UI can show
   // a real reason instead of a generic "something went wrong."

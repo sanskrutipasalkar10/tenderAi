@@ -10,6 +10,7 @@ from app.models import (  # noqa: F401
     boilerplate_cache,
     chunk,
     chunk_extraction,
+    chunk_extraction_cache,
     company_profile,
     document,
     document_analysis,

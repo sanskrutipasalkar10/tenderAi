@@ -19,4 +19,10 @@ class ChunkExtraction(Base):
     )
     structured_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     model_used: Mapped[str | None] = mapped_column(Text)
+    # Set only when this row was synthesized from a ChunkExtractionCache hit rather
+    # than a fresh LLM call (migration 0008) — points at the chunk whose original
+    # extraction produced the cached entry. NULL for the common, genuinely-fresh case.
+    reused_from_chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chunks.id")
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

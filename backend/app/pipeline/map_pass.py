@@ -11,6 +11,7 @@ from app.llm.structured import complete_structured
 from app.models.chunk import Chunk
 from app.models.chunk_extraction import ChunkExtraction
 from app.models.schemas import MapPassResult
+from app.pipeline import map_pass_cache
 from app.pipeline.chunk import chunk_page_text
 from app.prompts.registry import load_prompt
 
@@ -47,8 +48,15 @@ def run_map_pass(db: Session, chunk: Chunk) -> ChunkExtraction:
     that's persisted as-is (still never silently dropped), but both attempts are
     logged so the gap is visible rather than indistinguishable from "this chunk
     genuinely has nothing extractable."
+
+    Before paying for an LLM call at all, checks app.pipeline.map_pass_cache for a
+    chunk with byte-identical content already processed (this document, a different
+    one, or the same tender's content repeated as an attachment) — on a hit, reuses
+    the cached structured facts with their page_refs remapped onto THIS chunk's real
+    pages (never the cached chunk's), skipping the LLM call entirely.
     """
     pages = chunk_page_text(db, chunk)
+    reused_from_chunk_id = None
 
     if not pages:
         result = MapPassResult()
@@ -60,32 +68,54 @@ def run_map_pass(db: Session, chunk: Chunk) -> ChunkExtraction:
             end_page=chunk.end_page,
         )
     else:
-        content = _format_chunk_content(pages)
-        # .replace(), not .format() — the prompt file's own JSON example is full of
-        # literal {braces} that .format() would misinterpret as placeholders.
-        prompt = load_prompt("map_pass", "v1_map_pass").replace("{content}", content)
-        result, model_used = complete_structured("map", prompt, MapPassResult)
+        current_pages = [page_number for page_number, _ in pages]
+        chash = map_pass_cache.content_hash(pages)
+        cached = map_pass_cache.get_cached(db, chash)
 
-        if len(content) > _MIN_CONTENT_LENGTH_FOR_NONEMPTY_RESULT and _is_empty(result):
-            logger.warning(
-                "map_pass.suspiciously_empty_result",
-                chunk_id=str(chunk.id),
-                content_length=len(content),
-                model_used=model_used,
+        if cached is not None:
+            remapped = map_pass_cache.remap_page_refs(
+                cached.structured_json, cached.original_pages, current_pages
             )
+            result = MapPassResult.model_validate(remapped)
+            model_used = cached.model_used
+            reused_from_chunk_id = cached.first_seen_chunk_id
+            logger.info(
+                "map_pass.cache_hit",
+                chunk_id=str(chunk.id),
+                reused_from_chunk_id=str(reused_from_chunk_id) if reused_from_chunk_id else None,
+            )
+        else:
+            content = _format_chunk_content(pages)
+            # .replace(), not .format() — the prompt file's own JSON example is full of
+            # literal {braces} that .format() would misinterpret as placeholders.
+            prompt = load_prompt("map_pass", "v1_map_pass").replace("{content}", content)
             result, model_used = complete_structured("map", prompt, MapPassResult)
-            if _is_empty(result):
+
+            if len(content) > _MIN_CONTENT_LENGTH_FOR_NONEMPTY_RESULT and _is_empty(result):
                 logger.warning(
-                    "map_pass.empty_after_retry",
+                    "map_pass.suspiciously_empty_result",
                     chunk_id=str(chunk.id),
                     content_length=len(content),
                     model_used=model_used,
                 )
+                result, model_used = complete_structured("map", prompt, MapPassResult)
+                if _is_empty(result):
+                    logger.warning(
+                        "map_pass.empty_after_retry",
+                        chunk_id=str(chunk.id),
+                        content_length=len(content),
+                        model_used=model_used,
+                    )
+
+            map_pass_cache.store(
+                db, chash, result.model_dump(), current_pages, model_used, chunk.id
+            )
 
     extraction = ChunkExtraction(
         chunk_id=chunk.id,
         structured_json=result.model_dump(),
         model_used=model_used,
+        reused_from_chunk_id=reused_from_chunk_id,
     )
     db.add(extraction)
     db.commit()

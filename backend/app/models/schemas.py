@@ -384,6 +384,9 @@ class DocumentStatusResponse(BaseModel):
     attachments_processed: int = 0
     chunks_total: int = 0
     chunks_mapped: int = 0
+    # Of chunks_mapped, how many reused a cached extraction instead of a fresh LLM
+    # call (app.pipeline.map_pass_cache) — duplicate content already seen elsewhere.
+    chunks_deduped: int = 0
     modules_ready: list[AnalysisModule] = Field(default_factory=list)
     # Set only when status="failed" (migration 0007) — why the pipeline stopped,
     # e.g. "Ingestion failed after 3 retries: <error>". Null otherwise, including

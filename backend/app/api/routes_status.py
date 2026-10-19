@@ -64,6 +64,15 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
         .join(Chunk, ChunkExtraction.chunk_id == Chunk.id)
         .where(Chunk.document_id == document_id)
     ).scalar_one()
+    # Of chunks_mapped above, how many skipped the LLM call entirely (duplicate
+    # content already seen elsewhere, app.pipeline.map_pass_cache) — computed live
+    # from the same join, same pattern as chunks_mapped itself.
+    chunks_deduped = db.execute(
+        select(func.count())
+        .select_from(ChunkExtraction)
+        .join(Chunk, ChunkExtraction.chunk_id == Chunk.id)
+        .where(Chunk.document_id == document_id, ChunkExtraction.reused_from_chunk_id.isnot(None))
+    ).scalar_one()
     modules_ready = list(
         db.execute(
             select(DocumentAnalysis.module).where(DocumentAnalysis.document_id == document_id)
@@ -83,6 +92,7 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
         attachments_processed=attachments_processed,
         chunks_total=chunks_total,
         chunks_mapped=chunks_mapped,
+        chunks_deduped=chunks_deduped,
         modules_ready=cast(list[AnalysisModule], modules_ready),
         failure_reason=document.failure_reason,
         updated_at=document.updated_at,

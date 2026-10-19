@@ -73,6 +73,9 @@ export default function ProcessingLog({ status }: { status: DocumentStatusRespon
       if (status.chunks_mapped > prev.chunks_mapped) {
         push(`Mapped chunk ${status.chunks_mapped} of ${status.chunks_total}`);
       }
+      if (status.chunks_deduped > prev.chunks_deduped) {
+        push(`Chunk ${status.chunks_mapped} reused cached extraction — duplicate content detected`);
+      }
       for (const analysisModule of status.modules_ready) {
         if (!prev.modules_ready.includes(analysisModule)) {
           push(`${MODULE_LABEL[analysisModule]} ready`);
