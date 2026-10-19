@@ -32,7 +32,7 @@ export default function SynopsisView({
   result: SynopsisResult;
   goNoGoResult?: GoNoGoResult | null;
 }) {
-  const [subTab, setSubTab] = useState<SubTab>("summary");
+  const [subTab, setSubTab] = useState<SubTab>("checklist");
   const [figuresOpen, setFiguresOpen] = useState(false);
   const figureCount = result.key_dates.length + result.financials.length;
 
