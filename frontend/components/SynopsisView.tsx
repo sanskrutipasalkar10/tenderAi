@@ -17,23 +17,9 @@ import Tabs, { TabIconChip } from "./ui/Tabs";
 import { ChevronDownIcon } from "./ui/icons";
 import type { GoNoGoResult, SynopsisResult } from "@/lib/types";
 
-const CONFIDENCE_STYLES: Record<SynopsisResult["confidence"], string> = {
-  high: "bg-status-go/10 text-status-go",
-  medium: "bg-status-conditional/10 text-status-conditional",
-  low: "bg-status-no-go/10 text-status-no-go",
-};
-
-// The model sometimes returns a literal "not found" sentence instead of leaving the
-// field empty — rendering that verbatim as a bold H2 title looked like a broken real
-// title rather than an honest "we don't know" state, so it's detected and downgraded.
-const MISSING_VALUE_PATTERN = /not (stated|found|available|mentioned|provided)/i;
-function isMissingValue(text: string): boolean {
-  return MISSING_VALUE_PATTERN.test(text);
-}
-
 const SUB_TABS = [
-  { id: "summary", label: "Summary", icon: <TabIconChip icon={FileText} /> },
   { id: "checklist", label: "Checklist", icon: <TabIconChip icon={ClipboardList} tone="go" /> },
+  { id: "summary", label: "Summary", icon: <TabIconChip icon={FileText} /> },
 ] as const;
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
@@ -48,8 +34,6 @@ export default function SynopsisView({
 }) {
   const [subTab, setSubTab] = useState<SubTab>("summary");
   const [figuresOpen, setFiguresOpen] = useState(false);
-  const titleMissing = isMissingValue(result.title);
-  const authorityMissing = isMissingValue(result.issuing_authority);
   const figureCount = result.key_dates.length + result.financials.length;
 
   return (
@@ -60,28 +44,6 @@ export default function SynopsisView({
 
       {subTab === "summary" && (
         <div className="space-y-6">
-          <Card>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                {titleMissing ? (
-                  <p className="text-base italic text-muted-foreground">
-                    Title not found in the extracted document text
-                  </p>
-                ) : (
-                  <h2 className="text-xl font-semibold text-foreground">{result.title}</h2>
-                )}
-                {!authorityMissing && (
-                  <p className="mt-1 text-sm text-muted-foreground">{result.issuing_authority}</p>
-                )}
-              </div>
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${CONFIDENCE_STYLES[result.confidence]}`}
-              >
-                {result.confidence} confidence
-              </span>
-            </div>
-          </Card>
-
           <div className="grid gap-4">
             <Section title="Scope of work" icon={Target}>{result.scope_summary}</Section>
             <Section title="Eligibility" icon={Handshake}>{result.eligibility_summary}</Section>

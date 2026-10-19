@@ -1,11 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, ClipboardCheck, FileDown, FileText, RefreshCw, Scale } from "lucide-react";
+import { AlertTriangle, FileDown, FileText, RefreshCw, Scale, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
-import CompanyChecklistView from "@/components/CompanyChecklistView";
 import GoNoGoCard from "@/components/GoNoGoCard";
 import ProcessingLog from "@/components/ProcessingLog";
 import ProcessingPipeline from "@/components/ProcessingPipeline";
@@ -15,7 +14,7 @@ import { StatusBadge } from "@/components/badges";
 import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
 import Tabs, { TabIconChip } from "@/components/ui/Tabs";
-import { ApiError, getAllAnalysis, getDocumentStatus, reevaluateDocument } from "@/lib/api";
+import { ApiError, cancelDocument, getAllAnalysis, getDocumentStatus, reevaluateDocument } from "@/lib/api";
 import type {
   AnalysisModule,
   DocumentAnalysisResponse,
@@ -25,28 +24,26 @@ import type {
   SynopsisResult,
 } from "@/lib/types";
 
-// "company_checklist" is a UI-only tab, not a real AnalysisModule — it has no
-// dedicated backend endpoint, it just renders a different view of the already-fetched
-// go_no_go analysis (CompanyChecklistView).
-type UiTab = AnalysisModule | "company_checklist";
+// Company Checklist lives inside the Go/No-Go tab as its 3rd sub-tab now
+// (GoNoGoCard.tsx) rather than as its own top-level tab — it's a different view of
+// the same go_no_go analysis, not a separate module, so it never needed to be a peer
+// of Go/No-Go in the first place.
+type UiTab = AnalysisModule;
 
 const TABS: { module: UiTab; label: string }[] = [
   { module: "go_no_go", label: "Go / No-Go" },
   { module: "synopsis", label: "Synopsis" },
-  { module: "company_checklist", label: "Company Checklist" },
   { module: "risk_finder", label: "Risk Finder" },
 ];
 
 const TAB_ICON: Record<UiTab, typeof Scale> = {
   go_no_go: Scale,
   synopsis: FileText,
-  company_checklist: ClipboardCheck,
   risk_finder: AlertTriangle,
 };
 const TAB_ICON_TONE: Record<UiTab, "primary" | "go" | "danger"> = {
   go_no_go: "primary",
   synopsis: "primary",
-  company_checklist: "go",
   risk_finder: "danger",
 };
 
@@ -76,8 +73,9 @@ function DocumentDetail({ documentId }: { documentId: string }) {
   const [activeTab, setActiveTab] = useState<UiTab>("go_no_go");
   const [error, setError] = useState<string | null>(null);
   const [startingReevaluate, setStartingReevaluate] = useState(false);
+  const [stoppingProcessing, setStoppingProcessing] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const cancelledRef = useRef(false);
+  const cancelledRef = useRef(false); // true once this component has unmounted (polling guard)
 
   function stopPolling() {
     if (pollTimerRef.current) {
@@ -151,11 +149,28 @@ function DocumentDetail({ documentId }: { documentId: string }) {
     }
   }
 
+  async function handleStopProcessing() {
+    if (!window.confirm("Stop processing this tender? This can't be resumed — you'd need to re-upload.")) {
+      return;
+    }
+    setStoppingProcessing(true);
+    setError(null);
+    try {
+      const updated = await cancelDocument(documentId);
+      // The backend can only request a stop cooperatively (CLAUDE.md — Celery runs
+      // --pool=solo here, no way to forcibly interrupt an already-running task), so
+      // whatever step is mid-flight right now finishes before noticing. Reflect the
+      // real server state immediately rather than waiting for the next poll tick.
+      setStatus(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not stop processing");
+    } finally {
+      setStoppingProcessing(false);
+    }
+  }
+
   const goNoGoAnalysis = analyses.find((a) => a.module === "go_no_go");
-  const activeResult =
-    activeTab === "company_checklist"
-      ? goNoGoAnalysis
-      : analyses.find((a) => a.module === activeTab);
+  const activeResult = analyses.find((a) => a.module === activeTab);
   const isProcessing = status !== null && !TERMINAL_STATUSES.has(status.status);
 
   return (
@@ -176,25 +191,37 @@ function DocumentDetail({ documentId }: { documentId: string }) {
           )
         }
         action={
-          status?.status === "ready" && (
-            <div className="flex flex-wrap items-center gap-2">
+          <>
+            {status?.status === "ready" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  loading={startingReevaluate}
+                  onClick={() => void handleReevaluate()}
+                  icon={<RefreshCw className="h-4 w-4" />}
+                >
+                  Reevaluate
+                </Button>
+                <Button
+                  href={`/documents/${documentId}/report`}
+                  variant="outline"
+                  icon={<FileDown className="h-4 w-4" />}
+                >
+                  Download report
+                </Button>
+              </div>
+            )}
+            {isProcessing && (
               <Button
-                variant="outline"
-                loading={startingReevaluate}
-                onClick={() => void handleReevaluate()}
-                icon={<RefreshCw className="h-4 w-4" />}
+                variant="destructive"
+                loading={stoppingProcessing}
+                onClick={() => void handleStopProcessing()}
+                icon={<Square className="h-3.5 w-3.5" />}
               >
-                Reevaluate
+                Stop processing
               </Button>
-              <Button
-                href={`/documents/${documentId}/report`}
-                variant="outline"
-                icon={<FileDown className="h-4 w-4" />}
-              >
-                Download report
-              </Button>
-            </div>
-          )
+            )}
+          </>
         }
       />
 
@@ -206,7 +233,7 @@ function DocumentDetail({ documentId }: { documentId: string }) {
         )}
 
         <AnimatePresence mode="wait">
-          {isProcessing && status && (
+          {(isProcessing || status?.status === "failed") && status && (
             <motion.div
               key="pipeline"
               initial={{ opacity: 0, y: 8 }}
@@ -215,11 +242,15 @@ function DocumentDetail({ documentId }: { documentId: string }) {
               transition={{ duration: 0.3 }}
             >
               <ProcessingPipeline status={status} />
-              <p className="mt-4 mb-4 text-sm text-muted-foreground">
-                This can take a while for a large tender — completeness matters more than speed
-                here. You can navigate away; processing continues in the background, and this page
-                will pick up right where it left off.
-              </p>
+              {/* "Processing continues in the background" is actively wrong once the
+                  document has terminally failed — nothing is still running. */}
+              {status.status !== "failed" && (
+                <p className="mt-4 mb-4 text-sm text-muted-foreground">
+                  This can take a while for a large tender — completeness matters more than speed
+                  here. You can navigate away; processing continues in the background, and this
+                  page will pick up right where it left off.
+                </p>
+              )}
               <ProcessingLog status={status} />
             </motion.div>
           )}
@@ -256,12 +287,6 @@ function DocumentDetail({ documentId }: { documentId: string }) {
                       documentId={documentId}
                       result={activeResult.result as SynopsisResult}
                       goNoGoResult={goNoGoAnalysis ? (goNoGoAnalysis.result as GoNoGoResult) : null}
-                    />
-                  )}
-                  {activeResult && activeTab === "company_checklist" && (
-                    <CompanyChecklistView
-                      documentId={documentId}
-                      goNoGoResult={activeResult.result as GoNoGoResult}
                     />
                   )}
                   {activeResult && activeTab === "risk_finder" && (

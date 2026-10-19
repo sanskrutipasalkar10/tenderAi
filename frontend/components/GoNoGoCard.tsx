@@ -19,6 +19,7 @@ import { useState } from "react";
 import { ApiError, resubmitGoNoGo, reviewGoNoGo } from "@/lib/api";
 import type { GoNoGoCriterionMatch, GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
+import CompanyChecklistView from "./CompanyChecklistView";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, DecisionBadge } from "./badges";
 import Button from "./ui/Button";
@@ -132,6 +133,7 @@ function weakestFactors(
 const SUB_TABS = [
   { id: "overview", label: "Overview", icon: <TabIconChip icon={LayoutDashboard} /> },
   { id: "details", label: "Details", icon: <TabIconChip icon={ListChecks} /> },
+  { id: "checklist", label: "Company Checklist", icon: <TabIconChip icon={ClipboardCheck} tone="go" /> },
 ] as const;
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
@@ -423,6 +425,10 @@ export default function GoNoGoCard({
             </div>
           )}
         </div>
+      )}
+
+      {subTab === "checklist" && (
+        <CompanyChecklistView documentId={documentId} goNoGoResult={result} />
       )}
     </div>
   );
