@@ -10,6 +10,12 @@ venv/
 htmlcov/
 .coverage
 
+# Local worker output when running backend/scripts/start_dev.ps1's native celery
+# process with its output redirected to a file (not a window) for live debugging —
+# machine-local runtime log, not project source.
+backend/celery_worker.log
+backend/celery_worker.err.log
+
 # Env / secrets
 .env
 *.env.local

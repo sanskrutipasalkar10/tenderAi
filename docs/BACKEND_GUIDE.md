@@ -26,23 +26,37 @@ This is a **pipeline**, explicitly not an agent and not a RAG system. Every stag
 classify → extract → dedupe-check → chunk → map (per-chunk fact extraction) → reduce
 (per-document judgment) → serve — is fixed at design time; nothing decides at runtime
 which tool to call or whether to retrieve again. "Map-reduce" here means: the **map**
-pass runs the same fixed extraction prompt independently over every ~5-page chunk of
+pass runs the same fixed extraction prompt independently over every ~25-page chunk of
 a document (cheap, parallel, per-chunk fan-out via Celery), and the **reduce** pass
 runs three fixed judgment prompts once, over the aggregated facts every chunk
 produced (fan-in). There is no retrieval step — every page of every document is read
 in full, which is also why `pgvector` is installed but genuinely unused (no `vector`
 column exists anywhere in the schema).
 
+> Chunk size was originally 5 pages (`docs/DECISIONS.md #35`, tuned against Ollama
+> Cloud's real throughput ceiling) and raised back to 25 once the Gemini switch below
+> made that safe again, re-verified against the "lost in the middle" failure mode
+> first (`docs/DECISIONS.md #77`).
+
 The stack: **FastAPI + Pydantic v2** for the API; **SQLAlchemy + PostgreSQL** for
 persistence; **Celery + Redis** for async task orchestration (map fan-out / reduce
 fan-in via Celery tasks — see the important caveat about automatic chaining in
 §6); **MinIO (dev) / S3-compatible storage (prod)** for PDF and page-image binaries;
-**Ollama Cloud** for every LLM call (text and vision), accessed through Ollama's
-native `/api/chat` endpoint rather than through `litellm` (two confirmed litellm/Ollama
-bugs — image handling and unenforced timeouts, `docs/DECISIONS.md #29`/`#34`); and
-**Langfuse** (self-hosted) plus **Prometheus/Grafana** for tracing and metrics. A
-single shared-credential JWT scheme (`docs/DECISIONS.md #44`) gates every route except
-`/health` and `/token`.
+the **Gemini API** (primary) for every LLM call (text and vision), with a genuinely
+local Ollama model as fallback on failure — accessed through hand-rolled native REST
+calls in `app/llm/client.py` rather than through `litellm` (confirmed litellm/Ollama
+bugs — image handling and unenforced timeouts, `docs/DECISIONS.md #29`/`#34`; same
+"verified timeout enforcement, no library surprises" reasoning applied when Gemini was
+added as primary, `docs/DECISIONS.md #76`, superseding the original Ollama-Cloud-primary
+design in `#28`); and **Langfuse** (self-hosted) plus **Prometheus/Grafana** for
+tracing and metrics. A single shared-credential JWT scheme (`docs/DECISIONS.md #44`)
+gates every route except `/health` and `/token`.
+>
+> **Note (2026-10-16):** this guide's file-by-file sections below were written against
+> `docs/DECISIONS.md #1-#59` and still describe the Ollama-Cloud-primary/5-page-chunk
+> design in places — the two corrections above are the ones that matter for a reader's
+> overall mental model; `docs/ARCHITECTURE.md` carries the current, kept-up-to-date
+> summary and diagrams.
 
 ---
 
