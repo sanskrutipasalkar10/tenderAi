@@ -21,12 +21,16 @@ import uuid
 
 from celery import chain, chord, group
 
+from app.core.logging import get_logger
 from app.storage.db import SessionLocal
+from app.workers._failure import mark_document_failed
 from app.workers.celery_app import celery_app
 from app.workers.tasks_chunk import build_chunks_task
 from app.workers.tasks_ingest import ingest_document_task
 from app.workers.tasks_map import map_pass_chunk_task
 from app.workers.tasks_reduce import go_no_go_task, risk_finder_task, synopsis_task
+
+logger = get_logger(__name__)
 
 
 def enqueue_full_pipeline(document_id: str) -> None:
@@ -74,34 +78,49 @@ def _start_map_and_reduce(self, chunk_ids: list[str], document_id: str) -> None:
     docs/SPEC.md's DDL, applied as-is), then fans the map pass out as a chord: every
     chunk's map-pass task runs in parallel, and once ALL of them finish,
     `_start_reduce_pass` (the chord's callback) fires automatically.
+
+    The last `chain(...)` link (docs/DECISIONS.md #62's chord-header exemption doesn't
+    apply here) — on exhausted retries this must explicitly mark the document failed,
+    or a dead status-write/chord-dispatch here silently strands the document at
+    status="extracted" forever.
     """
     from app.models.document import Document
 
-    db = SessionLocal()
     try:
-        document = db.get(Document, uuid.UUID(document_id))
-        if document is None:
-            raise ValueError(f"Document {document_id} not found")
-        document.status = "analyzing"
-        db.commit()
+        db = SessionLocal()
+        try:
+            document = db.get(Document, uuid.UUID(document_id))
+            if document is None:
+                raise ValueError(f"Document {document_id} not found")
+            document.status = "analyzing"
+            db.commit()
+        finally:
+            db.close()
+
+        if not chunk_ids:
+            # A document with zero chunks (shouldn't happen for a real tender, but a
+            # near-empty/edge-case upload could produce one) has nothing to map — skip
+            # straight to reduce so it doesn't hang "analyzing" forever with no chord to
+            # ever fire.
+            _start_reduce_pass.delay([], document_id)
+            return
+
+        chord(
+            group(map_pass_chunk_task.s(chunk_id) for chunk_id in chunk_ids),
+            _start_reduce_pass.s(document_id),
+        ).delay()
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
-        db.rollback()
-        raise self.retry(exc=exc) from exc
-    finally:
-        db.close()
-
-    if not chunk_ids:
-        # A document with zero chunks (shouldn't happen for a real tender, but a
-        # near-empty/edge-case upload could produce one) has nothing to map — skip
-        # straight to reduce so it doesn't hang "analyzing" forever with no chord to
-        # ever fire.
-        _start_reduce_pass.delay([], document_id)
-        return
-
-    chord(
-        group(map_pass_chunk_task.s(chunk_id) for chunk_id in chunk_ids),
-        _start_reduce_pass.s(document_id),
-    ).delay()
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=exc) from exc
+        logger.error(
+            "pipeline.start_map_and_reduce_permanently_failed",
+            document_id=document_id,
+            error=str(exc),
+        )
+        mark_document_failed(
+            document_id, f"Starting map/reduce failed after {self.max_retries} retries: {exc}"
+        )
+        raise
 
 
 @celery_app.task(name="start_reduce_pass_for_document", bind=True)
@@ -111,15 +130,28 @@ def _start_reduce_pass(self, map_results: list[str], document_id: str) -> None:
     error handling for a chord is to propagate to the callback rather than silently
     hang it forever). Fans the three reduce-pass modules out as their own independent
     group, then marks the document "ready" once all three finish.
+
+    This task has no `max_retries` of its own (it's a chord callback, not a chain
+    link — Celery doesn't retry a chord callback the same way), so any failure here
+    (e.g. a broker blip while enqueuing the reduce chord) is terminal immediately;
+    caught and marked failed rather than left silently stuck at status="analyzing"
+    forever with the map pass already fully done.
     """
-    chord(
-        group(
-            go_no_go_task.s(document_id),
-            synopsis_task.s(document_id),
-            risk_finder_task.s(document_id),
-        ),
-        _mark_document_ready.s(document_id),
-    ).delay()
+    try:
+        chord(
+            group(
+                go_no_go_task.s(document_id),
+                synopsis_task.s(document_id),
+                risk_finder_task.s(document_id),
+            ),
+            _mark_document_ready.s(document_id),
+        ).delay()
+    except Exception as exc:  # noqa: BLE001 - nothing to retry into; this chord has no caller left
+        logger.error(
+            "pipeline.start_reduce_pass_failed", document_id=document_id, error=str(exc)
+        )
+        mark_document_failed(document_id, f"Starting reduce pass failed: {exc}")
+        raise
 
 
 @celery_app.task(name="mark_document_ready", bind=True)
@@ -132,5 +164,10 @@ def _mark_document_ready(self, reduce_results: list[str], document_id: str) -> N
         if document is not None:
             document.status = "ready"
             db.commit()
+    except Exception as exc:  # noqa: BLE001 - last step in the chain; nothing left to retry into
+        db.rollback()
+        logger.error("pipeline.mark_ready_failed", document_id=document_id, error=str(exc))
+        mark_document_failed(document_id, f"Failed to mark document ready: {exc}")
+        raise
     finally:
         db.close()

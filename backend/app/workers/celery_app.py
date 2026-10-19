@@ -44,6 +44,16 @@ celery_app.conf.update(
     # multiprocess-safe metrics code in the worker processes themselves.
     worker_send_task_events=True,
     task_send_sent_event=True,
+    # Redis transport's own default visibility_timeout is 3600s (1 hour): if a worker
+    # dies mid-task (crash, OS kill, a restart) with task_acks_late=True, the message
+    # stays invisible — not redelivered, not failed, just gone — for up to an hour
+    # before Celery's Redis transport even reconsiders it abandoned. Confirmed as a
+    # real, not hypothetical, gap: a genuinely stuck document showed zero active,
+    # reserved, or scheduled tasks anywhere, with no error, while its worker had
+    # silently died mid-ingestion. 1800s (30 min) is generous enough for a real
+    # large-document ingestion (no fixed per-task time limit there, see below) while
+    # bounding how long a crash can hide a task for.
+    broker_transport_options={"visibility_timeout": 1800},
 )
 
 # Per-chunk/per-module time limits — set on tasks_map.py/tasks_reduce.py individually,

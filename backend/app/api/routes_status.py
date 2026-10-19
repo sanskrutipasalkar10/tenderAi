@@ -84,5 +84,6 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
         chunks_total=chunks_total,
         chunks_mapped=chunks_mapped,
         modules_ready=cast(list[AnalysisModule], modules_ready),
+        failure_reason=document.failure_reason,
         updated_at=document.updated_at,
     )

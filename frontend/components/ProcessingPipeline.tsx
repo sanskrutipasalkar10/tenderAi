@@ -49,9 +49,16 @@ export default function ProcessingPipeline({ status }: { status: DocumentStatusR
     return (
       <Card tone="danger">
         <p className="text-sm font-semibold text-severity-high">Processing failed</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Something went wrong while processing this document. Try re-uploading it, or contact
-          support if the problem persists.
+        {status.failure_reason ? (
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{status.failure_reason}</p>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Something went wrong while processing this document, before this error-reporting was
+            added — no reason was recorded.
+          </p>
+        )}
+        <p className="mt-2 text-sm text-muted-foreground">
+          Try re-uploading it, or contact support if the problem persists.
         </p>
       </Card>
     );

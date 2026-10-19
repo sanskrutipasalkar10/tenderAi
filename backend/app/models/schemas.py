@@ -385,6 +385,10 @@ class DocumentStatusResponse(BaseModel):
     chunks_total: int = 0
     chunks_mapped: int = 0
     modules_ready: list[AnalysisModule] = Field(default_factory=list)
+    # Set only when status="failed" (migration 0007) — why the pipeline stopped,
+    # e.g. "Ingestion failed after 3 retries: <error>". Null otherwise, including
+    # while genuinely in progress.
+    failure_reason: str | None = None
     updated_at: datetime
 
 

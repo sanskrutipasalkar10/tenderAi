@@ -38,6 +38,9 @@ export interface DocumentStatusResponse {
   chunks_total: number;
   chunks_mapped: number;
   modules_ready: AnalysisModule[];
+  // Set only when status is "failed" — why the pipeline stopped, so the UI can show
+  // a real reason instead of a generic "something went wrong."
+  failure_reason: string | null;
   updated_at: string;
 }
 

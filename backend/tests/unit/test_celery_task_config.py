@@ -49,3 +49,13 @@ def test_task_events_are_enabled_for_the_celery_exporter() -> None:
     # /metrics endpoint would just be permanently empty, silently.
     assert celery_app.conf.worker_send_task_events is True
     assert celery_app.conf.task_send_sent_event is True
+
+
+def test_redis_visibility_timeout_is_bounded() -> None:
+    # Redis transport's own default (3600s) left a crashed worker's task invisible —
+    # not redelivered, not failed, just gone — for up to an hour (docs/DECISIONS.md,
+    # found diagnosing a genuinely stuck real document). Must be set, and well under
+    # the library default, so a crash recovers promptly instead of silently hiding.
+    timeout = celery_app.conf.broker_transport_options.get("visibility_timeout")
+    assert timeout is not None
+    assert timeout < 3600

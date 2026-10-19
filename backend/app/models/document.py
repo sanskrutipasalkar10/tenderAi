@@ -31,9 +31,20 @@ class Document(Base):
     issuing_authority: Mapped[str | None] = mapped_column(Text)
     total_pages: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="uploaded")
+    # Set only on the terminal status="failed" transition (migration 0007) — why the
+    # pipeline stopped, surfaced to the frontend instead of requiring a dig through
+    # worker logs. Null for every other status, including a genuinely in-progress one.
+    failure_reason: Mapped[str | None] = mapped_column(Text)
     original_pdf_s3_key: Mapped[str | None] = mapped_column(Text)
     company_profile_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("company_profiles.id")
     )
     uploaded_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    # onupdate is an ORM-level behavior (touches the column on every SQLAlchemy UPDATE),
+    # not a schema change (docs/DECISIONS.md, matching company_profiles.updated_at's own
+    # fix). Previously missing here: this column was insert-only in practice, silently
+    # useless as a "last activity" signal for a stuck document — found while diagnosing
+    # a genuinely stuck tender whose updated_at was actually just its upload time.
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now(), nullable=False
+    )
