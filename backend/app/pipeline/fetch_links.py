@@ -16,6 +16,7 @@ import hashlib
 import random
 import time
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import BytesIO
@@ -117,11 +118,26 @@ def classify_link(url: str) -> LinkClassification:
 def _sniff_content_type(content: bytes) -> SniffedContentType:
     """Never trust the URL's apparent purpose or the response header alone — a real
     GeM "Service Level Agreement" link returned a full text/html portal page, not a
-    document, confirmed by direct inspection."""
+    document, confirmed by direct inspection.
+
+    `PK\\x03\\x04` alone is NOT sufficient to conclude "docx" — it's the generic ZIP
+    signature every Office Open XML format shares (.docx, .xlsx, .pptx are all ZIP
+    containers). Real bug found in production: a tender's linked .xlsx attachment
+    passed this check, got handed to python-docx, and crashed with "file is not a
+    Word file". Only a ZIP that actually contains `word/document.xml` is a real Word
+    document; anything else that merely starts with the ZIP signature degrades to
+    "unknown" (already-handled: logged and skipped, never crashes ingestion).
+    """
     if content.startswith(b"%PDF-"):
         return "pdf"
     if content[:4] == b"PK\x03\x04":
-        return "docx"
+        try:
+            with zipfile.ZipFile(BytesIO(content)) as zf:
+                if "word/document.xml" in zf.namelist():
+                    return "docx"
+        except zipfile.BadZipFile:
+            pass
+        return "unknown"
     head = content[:2000].lstrip().lower()
     if head.startswith(b"<!doctype html") or b"<html" in head:
         return "html"

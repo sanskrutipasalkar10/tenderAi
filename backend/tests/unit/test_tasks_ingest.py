@@ -36,7 +36,14 @@ def test_retries_when_attempts_remain() -> None:
 
             mock_retry.assert_called_once()
             mock_mark_failed.assert_not_called()
-            mock_session_local.return_value.rollback.assert_called_once()
+            db = mock_session_local.return_value
+            db.rollback.assert_called_once()
+            # Idempotency fix: a retry must wipe this document's partial pages first,
+            # or the retry immediately collides with its own already-inserted rows on
+            # pages_document_id_page_number_key — a real bug found in production that
+            # masked the actual original failure behind a confusing constraint error.
+            db.execute.assert_called_once()
+            db.commit.assert_called_once()
     finally:
         ingest_document_task.pop_request()
 
@@ -67,6 +74,9 @@ def test_marks_document_failed_once_retries_are_exhausted() -> None:
             assert call_args[0][0] == FAKE_DOC_ID
             assert "3 retries" in call_args[0][1]
             assert "provider timed out" in call_args[0][1]
-            mock_session_local.return_value.rollback.assert_called_once()
+            db = mock_session_local.return_value
+            db.rollback.assert_called_once()
+            # No point wiping pages for a retry that's never going to happen.
+            db.execute.assert_not_called()
     finally:
         ingest_document_task.pop_request()

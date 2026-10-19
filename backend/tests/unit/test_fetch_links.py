@@ -7,6 +7,7 @@ GeM-Bidding-*.pdf sample — those are real, gitignored tender documents
 
 import io
 import uuid
+import zipfile
 from unittest.mock import MagicMock, patch
 
 import fitz
@@ -148,6 +149,43 @@ def test_fetch_url_returns_none_for_unrecognized_content(mock_get, _mock_gate) -
     mock_get.return_value.raise_for_status = MagicMock()
 
     assert fetch_links.fetch_url("https://bidplus.gem.gov.in/x") is None
+
+
+# --- content-type sniffing --------------------------------------------------------------
+
+
+def test_sniff_content_type_recognizes_a_real_docx() -> None:
+    doc = DocxDocument()
+    doc.add_paragraph("real clause text")
+    buf = io.BytesIO()
+    doc.save(buf)
+
+    assert fetch_links._sniff_content_type(buf.getvalue()) == "docx"
+
+
+def test_sniff_content_type_does_not_mistake_other_ooxml_for_docx() -> None:
+    """Real bug found in production: an .xlsx attachment shares docx's outer ZIP
+    signature (PK\\x03\\x04 — every OOXML format does), got misclassified as "docx",
+    and crashed python-docx with "file is not a Word file". Any ZIP that lacks
+    word/document.xml (an .xlsx's xl/workbook.xml here) must degrade to "unknown"
+    instead, never crash ingestion.
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("xl/workbook.xml", "<workbook/>")
+        zf.writestr("[Content_Types].xml", "<Types/>")
+
+    assert fetch_links._sniff_content_type(buf.getvalue()) == "unknown"
+
+
+def test_sniff_content_type_handles_a_corrupt_zip_gracefully() -> None:
+    corrupt = b"PK\x03\x04" + b"not actually a valid zip"
+    assert fetch_links._sniff_content_type(corrupt) == "unknown"
+
+
+def test_sniff_content_type_recognizes_pdf_and_html() -> None:
+    assert fetch_links._sniff_content_type(b"%PDF-1.4\n...") == "pdf"
+    assert fetch_links._sniff_content_type(b"<!DOCTYPE html><html></html>") == "html"
 
 
 # --- HTML / docx extraction ------------------------------------------------------------
