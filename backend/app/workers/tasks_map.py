@@ -13,6 +13,7 @@ import uuid
 
 from app.core.logging import get_logger
 from app.storage.db import SessionLocal
+from app.workers._failure import not_cancelled
 from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
 
 logger = get_logger(__name__)
@@ -44,6 +45,7 @@ def map_pass_chunk_task(self, chunk_id: str) -> str | None:
     slightly less-complete source material, not a broken pipeline.
     """
     from app.models.chunk import Chunk
+    from app.models.document import Document
     from app.pipeline.map_pass import run_map_pass
 
     db = SessionLocal()
@@ -51,6 +53,10 @@ def map_pass_chunk_task(self, chunk_id: str) -> str | None:
         chunk = db.get(Chunk, uuid.UUID(chunk_id))
         if chunk is None:
             raise ValueError(f"Chunk {chunk_id} not found")
+        document = db.get(Document, chunk.document_id)
+        if not not_cancelled(document):
+            logger.info("map_pass.chunk_skipped_cancelled", chunk_id=chunk_id)
+            return None
         extraction = run_map_pass(db, chunk)
         return str(extraction.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch

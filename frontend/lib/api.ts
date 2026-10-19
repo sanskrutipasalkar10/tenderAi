@@ -106,6 +106,10 @@ export function reevaluateDocument(documentId: string): Promise<DocumentUploadRe
   return apiFetch(`/documents/${documentId}/reevaluate`, { method: "POST" });
 }
 
+export function cancelDocument(documentId: string): Promise<DocumentStatusResponse> {
+  return apiFetch(`/documents/${documentId}/cancel`, { method: "POST" });
+}
+
 export function getAnalysis<T = unknown>(
   documentId: string,
   module: AnalysisModule,

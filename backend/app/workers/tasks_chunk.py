@@ -12,7 +12,7 @@ import uuid
 
 from app.core.logging import get_logger
 from app.storage.db import SessionLocal
-from app.workers._failure import mark_document_failed
+from app.workers._failure import mark_document_failed, not_cancelled
 from app.workers.celery_app import celery_app
 
 logger = get_logger(__name__)
@@ -33,6 +33,9 @@ def build_chunks_task(self, document_id: str) -> list[str]:
         document = db.get(Document, uuid.UUID(document_id))
         if document is None:
             raise ValueError(f"Document {document_id} not found")
+        if not not_cancelled(document):
+            logger.info("chunk.skipped_cancelled", document_id=document_id)
+            return []
         chunks = build_chunks(db, document)
         return [str(chunk.id) for chunk in chunks]
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch

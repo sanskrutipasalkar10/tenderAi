@@ -97,3 +97,28 @@ def get_document_status(document_id: uuid.UUID, db: Session = Depends(get_db)):
         failure_reason=document.failure_reason,
         updated_at=document.updated_at,
     )
+
+
+@router.post("/{document_id}/cancel", response_model=DocumentStatusResponse)
+def cancel_document(document_id: uuid.UUID, db: Session = Depends(get_db)):
+    """User-initiated stop. Sets status="failed" with a "Cancelled by user" reason —
+    reuses the existing terminal state rather than a new "cancelled" enum value/
+    migration, since nothing downstream needs to distinguish the two.
+
+    This only ever *requests* a stop — Celery runs `--pool=solo` here (one task at a
+    time, no separate process per task), so an already-running task can't be forcibly
+    interrupted; every pipeline task checks this status at its own next entry point
+    instead (app.workers._failure.not_cancelled) and no-ops if it's already set. A
+    task mid-flight right now will still finish that one step before noticing.
+    """
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if document.status in ("ready", "failed"):
+        raise HTTPException(
+            status_code=409, detail=f"Document is already {document.status}, nothing to cancel"
+        )
+    document.status = "failed"
+    document.failure_reason = "Cancelled by user"
+    db.commit()
+    return get_document_status(document_id, db)

@@ -23,7 +23,7 @@ from celery import chain, chord, group
 
 from app.core.logging import get_logger
 from app.storage.db import SessionLocal
-from app.workers._failure import mark_document_failed
+from app.workers._failure import mark_document_failed, not_cancelled
 from app.workers.celery_app import celery_app
 from app.workers.tasks_chunk import build_chunks_task
 from app.workers.tasks_ingest import ingest_document_task
@@ -92,6 +92,11 @@ def _start_map_and_reduce(self, chunk_ids: list[str], document_id: str) -> None:
             document = db.get(Document, uuid.UUID(document_id))
             if document is None:
                 raise ValueError(f"Document {document_id} not found")
+            if not not_cancelled(document):
+                logger.info(
+                    "pipeline.start_map_and_reduce_skipped_cancelled", document_id=document_id
+                )
+                return
             document.status = "analyzing"
             db.commit()
         finally:
@@ -137,7 +142,18 @@ def _start_reduce_pass(self, map_results: list[str], document_id: str) -> None:
     caught and marked failed rather than left silently stuck at status="analyzing"
     forever with the map pass already fully done.
     """
+    from app.models.document import Document
+
     try:
+        db = SessionLocal()
+        try:
+            document = db.get(Document, uuid.UUID(document_id))
+            if not not_cancelled(document):
+                logger.info("pipeline.start_reduce_pass_skipped_cancelled", document_id=document_id)
+                return
+        finally:
+            db.close()
+
         chord(
             group(
                 go_no_go_task.s(document_id),
@@ -161,7 +177,11 @@ def _mark_document_ready(self, reduce_results: list[str], document_id: str) -> N
     db = SessionLocal()
     try:
         document = db.get(Document, uuid.UUID(document_id))
-        if document is not None:
+        # Never overwrite a cancellation/failure that happened while the reduce
+        # modules were still running — "failed" (including user-cancelled) is
+        # terminal and must stay terminal, not get silently flipped back to "ready"
+        # just because the in-flight work it already abandoned happened to finish.
+        if document is not None and not_cancelled(document):
             document.status = "ready"
             db.commit()
     except Exception as exc:  # noqa: BLE001 - last step in the chain; nothing left to retry into

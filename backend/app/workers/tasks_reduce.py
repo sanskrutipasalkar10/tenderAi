@@ -14,6 +14,7 @@ import uuid
 
 from app.core.logging import get_logger
 from app.storage.db import SessionLocal
+from app.workers._failure import not_cancelled
 from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
 
 logger = get_logger(__name__)
@@ -53,6 +54,9 @@ def go_no_go_task(self, document_id: str) -> str | None:
         document = db.get(Document, uuid.UUID(document_id))
         if document is None:
             raise ValueError(f"Document {document_id} not found")
+        if not not_cancelled(document):
+            logger.info("reduce_pass.go_no_go_skipped_cancelled", document_id=document_id)
+            return None
         profile = (
             db.get(CompanyProfile, document.company_profile_id)
             if document.company_profile_id
@@ -79,6 +83,9 @@ def synopsis_task(self, document_id: str) -> str | None:
         document = db.get(Document, uuid.UUID(document_id))
         if document is None:
             raise ValueError(f"Document {document_id} not found")
+        if not not_cancelled(document):
+            logger.info("reduce_pass.synopsis_skipped_cancelled", document_id=document_id)
+            return None
         analysis = run_synopsis(db, document)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
@@ -99,6 +106,9 @@ def risk_finder_task(self, document_id: str) -> str | None:
         document = db.get(Document, uuid.UUID(document_id))
         if document is None:
             raise ValueError(f"Document {document_id} not found")
+        if not not_cancelled(document):
+            logger.info("reduce_pass.risk_finder_skipped_cancelled", document_id=document_id)
+            return None
         analysis = run_risk_finder(db, document)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch

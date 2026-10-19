@@ -64,3 +64,52 @@ def test_status_splits_main_document_pages_from_linked_documents_found() -> None
     assert body["attachments_processed"] == 1
     assert body["chunks_deduped"] == 3
     assert body["total_pages"] == 68
+
+
+# --- POST /documents/{id}/cancel --------------------------------------------------
+
+
+def test_cancel_marks_an_in_progress_document_failed() -> None:
+    document_id = uuid.uuid4()
+    document = Document(
+        id=document_id, filename="tender.pdf", status="analyzing", total_pages=10,
+        updated_at=datetime.now(timezone.utc),
+    )
+    fake_db = _override_db([0, 0, 0, 0, 0, 0, 0])
+    fake_db.get.return_value = document
+    app.dependency_overrides[get_db] = lambda: fake_db
+
+    response = client.post(f"/documents/{document_id}/cancel")
+
+    assert response.status_code == 200
+    assert document.status == "failed"
+    assert document.failure_reason == "Cancelled by user"
+    fake_db.commit.assert_called_once()
+    assert response.json()["status"] == "failed"
+    assert response.json()["failure_reason"] == "Cancelled by user"
+
+
+def test_cancel_rejects_an_already_terminal_document() -> None:
+    document_id = uuid.uuid4()
+    document = Document(
+        id=document_id, filename="tender.pdf", status="ready", total_pages=10,
+        updated_at=datetime.now(timezone.utc),
+    )
+    fake_db = MagicMock()
+    fake_db.get.return_value = document
+    app.dependency_overrides[get_db] = lambda: fake_db
+
+    response = client.post(f"/documents/{document_id}/cancel")
+
+    assert response.status_code == 409
+    fake_db.commit.assert_not_called()
+
+
+def test_cancel_404s_for_an_unknown_document() -> None:
+    fake_db = MagicMock()
+    fake_db.get.return_value = None
+    app.dependency_overrides[get_db] = lambda: fake_db
+
+    response = client.post(f"/documents/{uuid.uuid4()}/cancel")
+
+    assert response.status_code == 404

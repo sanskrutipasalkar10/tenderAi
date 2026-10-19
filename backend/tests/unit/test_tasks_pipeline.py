@@ -88,11 +88,35 @@ def test_start_map_and_reduce_skips_to_reduce_on_zero_chunks() -> None:
         mock_reduce_pass.delay.assert_called_once_with([], FAKE_DOC_ID)
 
 
+def test_start_map_and_reduce_skips_a_cancelled_document() -> None:
+    """A user clicking Stop between chunking finishing and this task running must not
+    have the document silently flipped back to "analyzing" or have a chord of
+    map-pass tasks dispatched anyway.
+    """
+    with (
+        patch("app.workers.tasks_pipeline.SessionLocal") as mock_session_local,
+        patch("app.workers.tasks_pipeline.chord") as mock_chord,
+        patch("app.workers.tasks_pipeline._start_reduce_pass") as mock_reduce_pass,
+    ):
+        document = MagicMock(status="failed")
+        mock_session_local.return_value.get.return_value = document
+
+        _start_map_and_reduce.run(["chunk-1"], FAKE_DOC_ID)
+
+        assert document.status == "failed"  # never overwritten to "analyzing"
+        mock_chord.assert_not_called()
+        mock_reduce_pass.delay.assert_not_called()
+
+
 def test_start_reduce_pass_marks_failed_on_dispatch_error() -> None:
     with (
+        patch("app.workers.tasks_pipeline.SessionLocal") as mock_session_local,
         patch("app.workers.tasks_pipeline.chord", side_effect=RuntimeError("broker down")),
         patch("app.workers.tasks_pipeline.mark_document_failed") as mock_mark_failed,
     ):
+        document = MagicMock(status="analyzing")
+        mock_session_local.return_value.get.return_value = document
+
         raised = False
         try:
             _start_reduce_pass.run([], FAKE_DOC_ID)
@@ -102,6 +126,21 @@ def test_start_reduce_pass_marks_failed_on_dispatch_error() -> None:
         assert raised, "original exception must propagate so Celery marks the task failed"
         mock_mark_failed.assert_called_once()
         assert mock_mark_failed.call_args[0][0] == FAKE_DOC_ID
+
+
+def test_start_reduce_pass_skips_a_cancelled_document() -> None:
+    with (
+        patch("app.workers.tasks_pipeline.SessionLocal") as mock_session_local,
+        patch("app.workers.tasks_pipeline.chord") as mock_chord,
+        patch("app.workers.tasks_pipeline.mark_document_failed") as mock_mark_failed,
+    ):
+        document = MagicMock(status="failed")
+        mock_session_local.return_value.get.return_value = document
+
+        _start_reduce_pass.run([], FAKE_DOC_ID)
+
+        mock_chord.assert_not_called()
+        mock_mark_failed.assert_not_called()
 
 
 def test_mark_document_ready_marks_failed_on_commit_error() -> None:
@@ -139,3 +178,19 @@ def test_mark_document_ready_happy_path_unaffected() -> None:
         assert document.status == "ready"
         db.commit.assert_called_once()
         mock_mark_failed.assert_not_called()
+
+
+def test_mark_document_ready_never_overwrites_a_cancelled_document() -> None:
+    """The reduce modules can still be mid-flight when a user clicks Stop — once they
+    all finish, this chord callback must not silently flip the document back to
+    "ready" just because the work it already abandoned happened to complete anyway.
+    """
+    with patch("app.workers.tasks_pipeline.SessionLocal") as mock_session_local:
+        db = mock_session_local.return_value
+        document = MagicMock(status="failed")
+        db.get.return_value = document
+
+        _mark_document_ready.run([], FAKE_DOC_ID)
+
+        assert document.status == "failed"
+        db.commit.assert_not_called()
