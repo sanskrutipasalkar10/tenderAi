@@ -36,6 +36,7 @@ REQUIRED_SYNOPSIS_KEYS = {
     "scope_summary",
     "eligibility_summary",
     "payment_terms_summary",
+    "project_requirements",
     "confidence",
 }
 

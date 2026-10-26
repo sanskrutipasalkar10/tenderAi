@@ -15,6 +15,7 @@ htmlcov/
 # machine-local runtime log, not project source.
 backend/celery_worker.log
 backend/celery_worker.err.log
+frontend/frontend_dev.log
 
 # Env / secrets
 .env

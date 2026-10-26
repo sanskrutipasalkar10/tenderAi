@@ -310,11 +310,29 @@ class RiskFinderResult(BaseModel):
     risks: list[RiskFinderRisk] = Field(default_factory=list)
 
 
+class SynopsisProjectRequirement(BaseModel):
+    """One distinct project/scope requirement the tender asks for, plus any
+    alternative/optional way of meeting it the tender itself states (docs/DECISIONS.md
+    — the "About Project" synopsis sub-tab). Grounded in the same already-extracted
+    `criteria`/dates/amounts facts the rest of the synopsis call already sees, not a
+    fresh re-read of the document — same hallucination-risk profile as
+    `scope_summary`/`eligibility_summary` already carry, not a new category of risk.
+    """
+
+    requirement: str
+    # What the tender states as an acceptable alternative/variant for this
+    # requirement (e.g. "Either on-site or cloud-hosted deployment is acceptable").
+    # "No alternative stated" when the tender gives no flexibility — never invented.
+    options: str
+    page_ref: int = Field(ge=0)
+
+
 class SynopsisLLMResult(BaseModel):
-    """What the model returns for synopsis — prose fields only. `key_dates` and
-    `financials` are populated by reduce_pass.py directly from the already-verified,
-    page-cited map-pass facts (hard rule 7: zero hallucination tolerance for dates/
-    amounts) rather than asked of the model a second time.
+    """What the model returns for synopsis — prose fields only, plus the structured
+    `project_requirements` list. `key_dates` and `financials` are populated by
+    reduce_pass.py directly from the already-verified, page-cited map-pass facts
+    (hard rule 7: zero hallucination tolerance for dates/amounts) rather than asked of
+    the model a second time.
     """
 
     title: str
@@ -322,6 +340,7 @@ class SynopsisLLMResult(BaseModel):
     scope_summary: str
     eligibility_summary: str
     payment_terms_summary: str
+    project_requirements: list[SynopsisProjectRequirement] = Field(default_factory=list)
     confidence: SynopsisConfidence
 
 
@@ -335,6 +354,7 @@ class SynopsisResult(BaseModel):
     scope_summary: str
     eligibility_summary: str
     payment_terms_summary: str
+    project_requirements: list[SynopsisProjectRequirement] = Field(default_factory=list)
     confidence: SynopsisConfidence
 
 

@@ -25,6 +25,7 @@ from app.models.schemas import (
     RiskFinderLLMResult,
     RiskFinderLLMRisk,
     SynopsisLLMResult,
+    SynopsisProjectRequirement,
     TQScoringLLMResult,
 )
 from app.pipeline import reduce_pass
@@ -471,6 +472,62 @@ def test_synopsis_dedupes_exact_duplicate_dates_from_overlapping_chunks(monkeypa
     analysis = reduce_pass.run_synopsis(db, document)
 
     assert len(analysis.result["key_dates"]) == 1
+
+
+def test_synopsis_project_requirements_pass_through_from_the_llm(monkeypatch) -> None:
+    """project_requirements is the one synopsis field that IS asked of the model
+    directly (unlike key_dates/financials, which are passed through verbatim from
+    map-pass) — just confirms run_synopsis actually forwards what the model returns
+    into the final result rather than dropping it.
+    """
+    document = _document()
+    db = FakeReduceSession(
+        chunk_extractions=[
+            _extraction(
+                MapPassResult(
+                    criteria=[
+                        MapPassCriterionFact(
+                            description="Deploy a cloud inventory system across 12 warehouses",
+                            page_ref=4,
+                        )
+                    ]
+                ).model_dump()
+            )
+        ]
+    )
+    fake_llm_result = SynopsisLLMResult(
+        title="T", issuing_authority="A", scope_summary="s",
+        eligibility_summary="e", payment_terms_summary="p", confidence="high",
+        project_requirements=[
+            SynopsisProjectRequirement(
+                requirement="Deploy a cloud-based inventory system across 12 warehouses",
+                options="Either on-premise or cloud-hosted deployment is acceptable",
+                page_ref=4,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
+    )
+
+    analysis = reduce_pass.run_synopsis(db, document)
+
+    assert analysis.result["project_requirements"] == [
+        {
+            "requirement": "Deploy a cloud-based inventory system across 12 warehouses",
+            "options": "Either on-premise or cloud-hosted deployment is acceptable",
+            "page_ref": 4,
+        }
+    ]
+
+
+def test_synopsis_project_requirements_default_to_empty_list() -> None:
+    document = _document()
+    db = FakeReduceSession(chunk_extractions=[_extraction(MapPassResult().model_dump())])
+
+    analysis = reduce_pass.run_synopsis(db, document)
+
+    assert analysis.result["project_requirements"] == []
 
 
 # --- upsert ----------------------------------------------------------------------

@@ -857,6 +857,7 @@ def run_synopsis(db: Session, document: Document) -> DocumentAnalysis:
                 "scope_summary": llm_result.scope_summary,
                 "eligibility_summary": llm_result.eligibility_summary,
                 "payment_terms_summary": llm_result.payment_terms_summary,
+                "project_requirements": llm_result.project_requirements,
                 "confidence": llm_result.confidence,
             }
         )

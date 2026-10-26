@@ -164,6 +164,14 @@ export interface SynopsisFact {
   page_ref: number;
 }
 
+export interface SynopsisProjectRequirement {
+  requirement: string;
+  // What the tender states as an acceptable alternative/variant for this
+  // requirement — literally "No alternative stated" when the tender offers none.
+  options: string;
+  page_ref: number;
+}
+
 export interface SynopsisResult {
   title: string;
   issuing_authority: string;
@@ -172,6 +180,7 @@ export interface SynopsisResult {
   scope_summary: string;
   eligibility_summary: string;
   payment_terms_summary: string;
+  project_requirements: SynopsisProjectRequirement[];
   confidence: "high" | "medium" | "low";
 }
 

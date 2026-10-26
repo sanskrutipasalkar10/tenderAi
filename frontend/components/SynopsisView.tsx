@@ -7,6 +7,7 @@ import {
   FileCheck,
   FileText,
   Handshake,
+  Layers,
   ListTodo,
   Target,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import type { GoNoGoResult, SynopsisResult } from "@/lib/types";
 const SUB_TABS = [
   { id: "checklist", label: "Checklist", icon: <TabIconChip icon={ClipboardList} tone="go" /> },
   { id: "summary", label: "Summary", icon: <TabIconChip icon={FileText} /> },
+  { id: "project", label: "About Project", icon: <TabIconChip icon={Layers} /> },
 ] as const;
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
@@ -93,6 +95,61 @@ export default function SynopsisView({
       {subTab === "checklist" && (
         <ChecklistTab documentId={documentId} goNoGoResult={goNoGoResult} />
       )}
+
+      {subTab === "project" && (
+        <ProjectRequirementsTab
+          documentId={documentId}
+          requirements={result.project_requirements}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProjectRequirementsTab({
+  documentId,
+  requirements,
+}: {
+  documentId: string;
+  // Older, already-analyzed documents predate this field entirely (undefined, not
+  // []) — same backward-compatibility gap documents_required already has above.
+  requirements?: SynopsisResult["project_requirements"];
+}) {
+  const items = requirements ?? [];
+
+  if (items.length === 0) {
+    return (
+      <Card className="text-sm text-muted-foreground">
+        No distinct project requirements were extracted for this tender — re-run
+        analysis if this document predates the "About Project" breakdown, or check the
+        Summary tab&apos;s scope description instead.
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <Card key={i} padding="sm">
+          <div className="flex items-start gap-3">
+            <TabIconChip icon={Layers} />
+            <div className="min-w-0 flex-1">
+              <CitationLink documentId={documentId} pageRef={item.page_ref}>
+                <span className="text-sm font-medium text-foreground">{item.requirement}</span>
+              </CitationLink>
+              <p
+                className={`mt-1 text-xs leading-relaxed ${
+                  item.options === "No alternative stated"
+                    ? "text-muted-foreground/70 italic"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {item.options}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
