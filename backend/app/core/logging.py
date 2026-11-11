@@ -1,5 +1,9 @@
 import logging
 import sys
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
 import structlog
 
@@ -42,3 +46,20 @@ def configure_logging() -> None:
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
+
+
+@contextmanager
+def log_duration(logger: Any, event: str, **fields: Any) -> Iterator[None]:
+    """Logs `event` with `duration_seconds` once the block exits, success or not — so a
+    slow tender's worker log shows which pipeline stage the wall-clock time actually
+    went to (ingestion/vision vs. map pass vs. reduce), rather than guessing.
+    """
+    start = time.monotonic()
+    outcome = "error"
+    try:
+        yield
+        outcome = "ok"
+    finally:
+        logger.info(
+            event, duration_seconds=round(time.monotonic() - start, 2), outcome=outcome, **fields
+        )

@@ -39,6 +39,24 @@ export function SeverityBadge({ severity }: { severity: RiskFinderRisk["severity
   );
 }
 
+// For a rating where HIGH is good (Strategic Relevance, Commercial Competitiveness) —
+// SeverityBadge colours HIGH red, which read as a warning on good news.
+const POSITIVE_LEVEL_STYLES: Record<RiskFinderRisk["severity"], string> = {
+  HIGH: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
+  MEDIUM: "bg-status-conditional/10 text-status-conditional ring-1 ring-status-conditional/30",
+  LOW: "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",
+};
+
+export function PositiveLevelBadge({ level }: { level: RiskFinderRisk["severity"] }) {
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold ${POSITIVE_LEVEL_STYLES[level]}`}
+    >
+      {level}
+    </span>
+  );
+}
+
 const CRITERION_STYLES: Record<PQChecklistStatus, string> = {
   pass: "bg-status-go/10 text-status-go ring-1 ring-status-go/30",
   fail: "bg-status-no-go/10 text-status-no-go ring-1 ring-status-no-go/30",

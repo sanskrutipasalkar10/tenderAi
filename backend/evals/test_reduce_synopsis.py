@@ -36,7 +36,7 @@ REQUIRED_SYNOPSIS_KEYS = {
     "scope_summary",
     "eligibility_summary",
     "payment_terms_summary",
-    "project_requirements",
+    "project_brief",
     "confidence",
 }
 
@@ -133,6 +133,8 @@ def test_synopsis_has_required_shape_and_preserves_golden_facts(
             "complete_structured",
             lambda *a, r=fake_llm_result, **k: (r, "test-model"),
         )
+        # The About Project brief reads `pages` rows this fake session doesn't model.
+        monkeypatch.setattr(reduce_pass, "build_project_brief", lambda db, doc: None)
 
         analysis = reduce_pass.run_synopsis(db, document)
         result = analysis.result

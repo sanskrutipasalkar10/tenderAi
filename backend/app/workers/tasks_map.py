@@ -11,7 +11,7 @@ retry/fallback.
 
 import uuid
 
-from app.core.logging import get_logger
+from app.core.logging import get_logger, log_duration
 from app.storage.db import SessionLocal
 from app.workers._failure import not_cancelled
 from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
@@ -57,7 +57,10 @@ def map_pass_chunk_task(self, chunk_id: str) -> str | None:
         if not not_cancelled(document):
             logger.info("map_pass.chunk_skipped_cancelled", chunk_id=chunk_id)
             return None
-        extraction = run_map_pass(db, chunk)
+        with log_duration(
+            logger, "stage.map_pass_chunk", document_id=str(chunk.document_id), chunk_id=chunk_id
+        ):
+            extraction = run_map_pass(db, chunk)
         return str(extraction.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()

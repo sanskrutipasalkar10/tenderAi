@@ -10,6 +10,7 @@ in; how should this document be summarized) and reduce_pass.py computes the rest
 see docs/DECISIONS.md #38-40 for why each of these specific splits was chosen.
 """
 
+import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -26,6 +27,7 @@ from app.models.chunk_extraction import ChunkExtraction
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.models.schemas import (
+    ConsortiumPolicy,
     GoNoGoCriterionMatch,
     GoNoGoDecision,
     GoNoGoHumanOverride,
@@ -47,6 +49,16 @@ from app.models.schemas import (
     TQScoringLLMResult,
 )
 from app.pipeline.citation_verify import verify_risk_citations
+from app.pipeline.eligibility_checks import (
+    apply_turnover_year_check,
+    dedupe_criteria,
+    detect_consortium_policy,
+    drop_unsupported_exemption_steps,
+    sync_pq_checklist,
+    turnover_facts_for_prompt,
+)
+from app.pipeline.project_brief import build_project_brief
+from app.pipeline.tender_pages import load_tender_pages
 from app.prompts.registry import load_prompt
 
 logger = get_logger(__name__)
@@ -289,6 +301,64 @@ def decide(score: float) -> GoNoGoDecision:
     return "No-Go"
 
 
+_DECISION_RANK: dict[str, int] = {
+    "No-Go": 0,
+    "Conditional-Go (Partner Required)": 1,
+    "Go (Management Review)": 2,
+    "Go": 3,
+}
+
+
+def final_decision(
+    weighted_score: float,
+    triggered_gates: list[str],
+    criteria_matches: list[GoNoGoCriterionMatch],
+    consortium_policy: ConsortiumPolicy | dict | None,
+) -> tuple[GoNoGoDecision, str | None]:
+    """The decision plus, when it was capped, why (docs/DECISIONS.md #95).
+
+    Tenders reject a bid that doesn't meet the minimum eligibility criteria, so a
+    failed eligibility criterion caps the score band: at Conditional-Go (Partner
+    Required) when a consortium/JV could cover it (allowed, or not stated — confirm
+    with the buyer), at No-Go when the tender forbids consortium bids. Found on a real
+    tender scored 65 "Go (Management Review)" while failing a ₹200 Lakh PQ criterion.
+    A human "Mark eligible" review lifts the cap, since it uses effective statuses.
+    """
+    if triggered_gates:
+        return "No-Go", None
+    decision = decide(weighted_score)
+    failing = [
+        m for m in criteria_matches
+        if m.criterion_type == "eligibility" and _effective_status(m) == "fail"
+    ]
+    if not failing:
+        return decision, None
+
+    policy = (
+        ConsortiumPolicy.model_validate(consortium_policy)
+        if isinstance(consortium_policy, dict)
+        else consortium_policy
+    )
+    count = f"{len(failing)} eligibility criteri{'on' if len(failing) == 1 else 'a'}"
+    if policy is not None and policy.status == "not_allowed":
+        return "No-Go", (
+            f"Fails {count} and the tender doesn't allow consortium/JV bids, so a "
+            "partner can't cover it."
+        )
+    cap: GoNoGoDecision = "Conditional-Go (Partner Required)"
+    if _DECISION_RANK[decision] <= _DECISION_RANK[cap]:
+        return decision, None
+    route = (
+        "the tender allows consortium/JV bids"
+        if policy is not None and policy.status == "allowed"
+        else "confirm with the buyer that consortium/JV bids are allowed"
+    )
+    return cap, (
+        f"Score {round(weighted_score)}/100 would be {decision}, but the bid fails {count} "
+        f"— capped at Conditional-Go: it needs a partner that meets it ({route})."
+    )
+
+
 def apply_human_overrides(
     result: dict[str, Any],
     overrides: list[tuple[int, Literal["pass", "fail"], str | None]],
@@ -333,9 +403,12 @@ def apply_human_overrides(
     triggered_gates = check_hard_gates(matches_models)
 
     factor_scores = result.get("factor_scores")
+    cap_reason = result.get("decision_cap_reason")
     if factor_scores is not None:
         weighted_score = compute_weighted_score(factor_scores)
-        decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+        decision, cap_reason = final_decision(
+            weighted_score, triggered_gates, matches_models, result.get("consortium_policy")
+        )
         score = round(weighted_score)
     else:
         # The pre-LLM short-circuit paths (missing profile fields / no criteria found)
@@ -346,7 +419,7 @@ def apply_human_overrides(
         score = result["score"]
 
     return {**result, "criteria_matches": criteria_matches, "gaps": triggered_gates,
-            "decision": decision, "score": score}
+            "decision": decision, "score": score, "decision_cap_reason": cap_reason}
 
 
 def _aggregate_chunk_facts(db: Session, document: Document) -> MapPassResult:
@@ -493,28 +566,46 @@ def run_go_no_go(db: Session, document: Document, company_profile: dict) -> Docu
         model_used = None
     else:
         content = _format_criteria_content(facts.criteria)
+        profile_text = _format_company_profile(
+            company_profile, [c.description for c in facts.criteria]
+        )
         prompt = (
             load_prompt("reduce", "v1_go_no_go")
-            .replace("{company_profile}", _format_company_profile(company_profile))
+            .replace("{company_profile}", profile_text)
             .replace("{content}", content)
         )
         llm_result, model_used = complete_structured("reduce", prompt, GoNoGoLLMResult)
+        criteria_matches, turnover_correction = apply_turnover_year_check(
+            llm_result.criteria_matches, company_profile.get("annual_turnover")
+        )
+        criteria_matches = dedupe_criteria(criteria_matches)
+        tender_pages = load_tender_pages(db, document)
+        consortium_policy = detect_consortium_policy(tender_pages)
+        next_steps = drop_unsupported_exemption_steps(llm_result.next_steps, tender_pages)
 
-        triggered_gates = check_hard_gates(llm_result.criteria_matches)
+        triggered_gates = check_hard_gates(criteria_matches)
         weighted_score = compute_weighted_score(llm_result.factor_scores)
-        decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+        decision, cap_reason = final_decision(
+            weighted_score, triggered_gates, criteria_matches, consortium_policy
+        )
 
         tq_result = _run_tq_scoring(facts, company_profile, document.id)
         result = GoNoGoResult(
             score=round(weighted_score),
             decision=decision,
-            criteria_matches=llm_result.criteria_matches,
+            decision_cap_reason=cap_reason,
+            criteria_matches=criteria_matches,
             gaps=triggered_gates,
-            next_steps=llm_result.next_steps,
+            next_steps=next_steps,
             factor_scores=llm_result.factor_scores,
             factor_score_reasons=llm_result.factor_score_reasons,
-            pq_checklist=_run_pq_checklist(facts, company_profile, document.id),
+            pq_checklist=sync_pq_checklist(
+                _run_pq_checklist(facts, company_profile, document.id),
+                turnover_correction,
+                consortium_policy,
+            ),
             documents_required=documents_required,
+            consortium_policy=consortium_policy,
             tq_score=round(compute_tq_score(tq_result.factor_scores)) if tq_result else None,
             tq_factor_scores=tq_result.factor_scores if tq_result else None,
             commercial_competitiveness=tq_result.commercial_competitiveness if tq_result else None,
@@ -531,8 +622,13 @@ def _format_criteria_content(criteria: list[MapPassCriterionFact]) -> str:
     return "\n".join(f"[PAGE {c.page_ref}] {c.description}" for c in criteria)
 
 
-def _format_company_profile(company_profile: dict) -> str:
+def _format_company_profile(company_profile: dict, criteria_texts: Sequence[str] = ()) -> str:
     lines = [f"{key}: {value}" for key, value in company_profile.items()]
+    # Exact turnover arithmetic from code (docs/DECISIONS.md #95) — every call that
+    # judges the profile sees the same figures instead of averaging on its own.
+    turnover = turnover_facts_for_prompt(company_profile.get("annual_turnover"), criteria_texts)
+    if turnover:
+        lines += ["", turnover]
     return "\n".join(lines)
 
 
@@ -706,7 +802,9 @@ def rescore_go_no_go(db: Session, document: Document, company_profile: dict) -> 
 
     triggered_gates = check_hard_gates(matches)
     weighted_score = compute_weighted_score(llm_result.factor_scores)
-    decision: GoNoGoDecision = "No-Go" if triggered_gates else decide(weighted_score)
+    decision, cap_reason = final_decision(
+        weighted_score, triggered_gates, matches, result.get("consortium_policy")
+    )
 
     updated_result = {
         **result,
@@ -714,6 +812,7 @@ def rescore_go_no_go(db: Session, document: Document, company_profile: dict) -> 
         "factor_score_reasons": llm_result.factor_score_reasons,
         "score": round(weighted_score),
         "decision": decision,
+        "decision_cap_reason": cap_reason,
         "gaps": triggered_gates,
     }
     validated = validate_analysis_result("go_no_go", updated_result)
@@ -825,8 +924,13 @@ def run_synopsis(db: Session, document: Document) -> DocumentAnalysis:
     """Writes the document synopsis. `key_dates`/`financials` are the already-verified,
     page-cited map-pass facts passed through directly (hard rule 7: zero hallucination
     tolerance for dates/amounts) — not re-generated by a second LLM call.
+
+    `project_brief` (the "About Project" tab) is a second, separate call on the cheap
+    model tier, written from the tender's scope pages rather than these facts — see
+    app.pipeline.project_brief. It returns None on failure rather than failing here.
     """
     facts = _aggregate_chunk_facts(db, document)
+    project_brief = build_project_brief(db, document)
     key_dates = _dedupe_facts(facts.dates)
     financials = _dedupe_facts(facts.amounts)
 
@@ -840,6 +944,7 @@ def run_synopsis(db: Session, document: Document) -> DocumentAnalysis:
             scope_summary="Not enough extracted facts to summarize this document.",
             eligibility_summary="Not enough extracted facts to summarize this document.",
             payment_terms_summary="Not enough extracted facts to summarize this document.",
+            project_brief=project_brief,
             confidence="low",
         )
         model_used = None
@@ -857,7 +962,7 @@ def run_synopsis(db: Session, document: Document) -> DocumentAnalysis:
                 "scope_summary": llm_result.scope_summary,
                 "eligibility_summary": llm_result.eligibility_summary,
                 "payment_terms_summary": llm_result.payment_terms_summary,
-                "project_requirements": llm_result.project_requirements,
+                "project_brief": project_brief,
                 "confidence": llm_result.confidence,
             }
         )
@@ -874,7 +979,16 @@ def _format_synopsis_content(facts: MapPassResult) -> str:
         lines.append(f"[PAGE {a.page_ref}] amount: {a.label} = {a.value}")
     for c in facts.criteria:
         lines.append(f"[PAGE {c.page_ref}] criterion: {c.description}")
+    # Payment clauses are extracted by the map pass as risk candidates, not as their own
+    # category — without them payment_terms_summary said "Not stated" on a real tender
+    # whose Risk Finder had flagged its pay-when-paid clause (docs/DECISIONS.md #95).
+    for r in facts.risk_candidates:
+        if _PAYMENT_CLAUSE.search(f"{r.category} {r.clause_summary}"):
+            lines.append(f"[PAGE {r.page_ref}] payment clause ({r.category}): {r.clause_summary}")
     return "\n".join(lines)
+
+
+_PAYMENT_CLAUSE = re.compile(r"\b(payment|paid|pay|invoice|billing|bill|retention)\b", re.I)
 
 
 def run_reduce_pass_for_document(

@@ -17,9 +17,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ApiError, resubmitGoNoGo, reviewGoNoGo } from "@/lib/api";
+import { FACTOR_WEIGHTS, GAUGE_COLOR, allNextSteps, buildJustification } from "@/lib/goNoGo";
 import type { GoNoGoCriterionMatch, GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import CompanyChecklistView from "./CompanyChecklistView";
+import EligibilityWarning from "./EligibilityWarning";
 import ScoreGauge from "./ScoreGauge";
 import { CriterionStatusBadge, DecisionBadge } from "./badges";
 import Button from "./ui/Button";
@@ -54,26 +56,6 @@ function explainCriterionStatus(match: GoNoGoCriterionMatch): string {
   );
 }
 
-const GAUGE_COLOR: Record<GoNoGoResult["decision"], string> = {
-  Go: "stroke-status-go",
-  "Go (Management Review)": "stroke-status-go",
-  "Conditional-Go (Partner Required)": "stroke-status-conditional",
-  "No-Go": "stroke-status-no-go",
-};
-
-// backend/app/pipeline/reduce_pass.py's BID_DECISION_FACTOR_WEIGHTS — kept in sync
-// manually since the weights are hardcoded Python constants, not served by the API.
-const FACTOR_WEIGHTS: Record<string, number> = {
-  "PQ Eligibility": 30,
-  "Similar Experience": 20,
-  "Technical Capability": 15,
-  "Government/PSU Experience": 10,
-  "Key Manpower": 10,
-  "Financial Capability": 5,
-  "Strategic Relevance": 5,
-  "Partner/OEM Availability": 5,
-};
-
 const FACTOR_ICON: Record<string, typeof ShieldCheck> = {
   "PQ Eligibility": ShieldCheck,
   "Similar Experience": History,
@@ -92,24 +74,6 @@ function scoreBarColor(score: number): string {
   if (score >= 70) return "bg-status-go";
   if (score >= 40) return "bg-status-conditional";
   return "bg-status-no-go";
-}
-
-// A short, specific "why" — names the actual triggered gates rather than a generic
-// canned sentence, so "why is this No-Go" has a real answer at a glance.
-function buildJustification(result: GoNoGoResult): string {
-  if (result.gaps.length > 0) {
-    return `Blocked by: ${result.gaps.join("; ")}.`;
-  }
-  switch (result.decision) {
-    case "Go":
-      return "All eligibility criteria are met and no hard-fail gates were triggered.";
-    case "Go (Management Review)":
-      return `Strong weighted score (${result.score}/100), no hard-fail gates — recommend a quick management sign-off before committing.`;
-    case "Conditional-Go (Partner Required)":
-      return `Weighted score of ${result.score}/100 falls in the conditional band — a partner or consortium route may be needed before committing.`;
-    default:
-      return `Weighted score of ${result.score}/100 is too low to proceed.`;
-  }
 }
 
 // A low score with no triggered gate (e.g. rfpesgcomplete.pdf: 29/100, no gaps) left
@@ -153,6 +117,7 @@ export default function GoNoGoCard({
     .map((match, i) => ({ match, i }))
     .filter(({ match }) => match.criterion_type !== "procedural");
   const weakFactors = weakestFactors(result.factor_scores, result.factor_score_reasons);
+  const nextSteps = allNextSteps(result);
 
   // Resubmitting re-asks the model for fresh factor_scores grounded in whatever's
   // been reviewed so far — pointless to offer before anything has actually been
@@ -217,6 +182,8 @@ export default function GoNoGoCard({
               </div>
             </div>
           </Card>
+
+          <EligibilityWarning result={result} documentId={documentId} />
 
           {result.factor_scores && (
             <Card>
@@ -404,14 +371,14 @@ export default function GoNoGoCard({
             </div>
           )}
 
-          {result.next_steps.length > 0 && (
+          {nextSteps.length > 0 && (
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
                 <TabIconChip icon={ListTodo} />
                 Recommended next steps
               </h3>
               <ul className="space-y-2">
-                {result.next_steps.map((step, i) => (
+                {nextSteps.map((step, i) => (
                   <li key={step}>
                     <Card padding="sm" className="flex items-start gap-3 text-sm text-foreground">
                       <span className="data-mono mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border border-input text-[11px] text-muted-foreground">

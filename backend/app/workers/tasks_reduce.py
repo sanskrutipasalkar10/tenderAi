@@ -12,7 +12,7 @@ facts rather than full page text.
 
 import uuid
 
-from app.core.logging import get_logger
+from app.core.logging import get_logger, log_duration
 from app.storage.db import SessionLocal
 from app.workers._failure import not_cancelled
 from app.workers.celery_app import LLM_TASK_SOFT_TIME_LIMIT, LLM_TASK_TIME_LIMIT, celery_app
@@ -63,7 +63,8 @@ def go_no_go_task(self, document_id: str) -> str | None:
             else None
         )
         profile_dict = profile_to_dict(profile)
-        analysis = run_go_no_go(db, document, profile_dict)
+        with log_duration(logger, "stage.reduce", module="go_no_go", document_id=document_id):
+            analysis = run_go_no_go(db, document, profile_dict)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
@@ -86,7 +87,8 @@ def synopsis_task(self, document_id: str) -> str | None:
         if not not_cancelled(document):
             logger.info("reduce_pass.synopsis_skipped_cancelled", document_id=document_id)
             return None
-        analysis = run_synopsis(db, document)
+        with log_duration(logger, "stage.reduce", module="synopsis", document_id=document_id):
+            analysis = run_synopsis(db, document)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
@@ -109,7 +111,8 @@ def risk_finder_task(self, document_id: str) -> str | None:
         if not not_cancelled(document):
             logger.info("reduce_pass.risk_finder_skipped_cancelled", document_id=document_id)
             return None
-        analysis = run_risk_finder(db, document)
+        with log_duration(logger, "stage.reduce", module="risk_finder", document_id=document_id):
+            analysis = run_risk_finder(db, document)
         return str(analysis.id)
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()

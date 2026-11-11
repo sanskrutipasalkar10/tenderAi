@@ -113,9 +113,21 @@ export interface MapPassDocumentRequirement {
 export type TQFactorScores = Record<string, number>;
 export type TQCompetitivenessLevel = "LOW" | "MEDIUM" | "HIGH";
 
+// Whether the tender lets a consortium/JV bid — detected in code from the tender's
+// own sentences (backend app/pipeline/eligibility_checks.py), page-cited.
+// "not_stated" means no explicit statement was found, not that it's forbidden.
+export interface ConsortiumPolicy {
+  status: "allowed" | "not_allowed" | "not_stated";
+  quote: string | null;
+  page_ref: number | null;
+}
+
 export interface GoNoGoResult {
   score: number;
   decision: "Go" | "Go (Management Review)" | "Conditional-Go (Partner Required)" | "No-Go";
+  // Why the decision is below what the score alone would give — set when a failed
+  // eligibility criterion capped it (backend reduce_pass.final_decision).
+  decision_cap_reason?: string | null;
   criteria_matches: GoNoGoCriterionMatch[];
   gaps: string[];
   next_steps: string[];
@@ -131,6 +143,8 @@ export interface GoNoGoResult {
   // (already extracted per-chunk by map_pass) and no company profile, so it's always
   // populated, including on the Conditional-Go short-circuit paths.
   documents_required: MapPassDocumentRequirement[];
+  // Absent on results stored before the consortium check existed.
+  consortium_policy?: ConsortiumPolicy | null;
   // Section B (12-item TQ score) + Section C's two judgment-based fields — same
   // additive/null-on-short-circuit-or-call-failure pattern as pq_checklist.
   tq_score: number | null;
@@ -164,12 +178,32 @@ export interface SynopsisFact {
   page_ref: number;
 }
 
-export interface SynopsisProjectRequirement {
+// The Synopsis "About Project" brief (docs/DECISIONS.md #92). `about_project` and
+// `technical_requirements` come from the tender's own pages (page-cited);
+// `suggested_approach`/`suggested_tech_stack` are AI recommendations, NOT tender facts.
+export interface ProjectTechnicalRequirement {
+  category: string;
   requirement: string;
-  // What the tender states as an acceptable alternative/variant for this
-  // requirement — literally "No alternative stated" when the tender offers none.
-  options: string;
   page_ref: number;
+}
+
+export interface ProjectApproachStep {
+  phase: string;
+  description: string;
+}
+
+export interface ProjectTechStackItem {
+  area: string;
+  recommendation: string;
+}
+
+export interface ProjectBrief {
+  about_project: string;
+  about_project_page_refs: number[];
+  technical_requirements: ProjectTechnicalRequirement[];
+  suggested_approach: ProjectApproachStep[];
+  suggested_tech_stack: ProjectTechStackItem[];
+  source_pages: number[];
 }
 
 export interface SynopsisResult {
@@ -180,7 +214,9 @@ export interface SynopsisResult {
   scope_summary: string;
   eligibility_summary: string;
   payment_terms_summary: string;
-  project_requirements: SynopsisProjectRequirement[];
+  // Absent/null on synopses stored before the brief existed, or when its own LLM
+  // call failed — the tab offers Reevaluate instead.
+  project_brief?: ProjectBrief | null;
   confidence: "high" | "medium" | "low";
 }
 

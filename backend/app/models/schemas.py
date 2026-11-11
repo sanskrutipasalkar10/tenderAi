@@ -229,11 +229,26 @@ class TQScoringLLMResult(BaseModel):
     major_technical_gap: str
 
 
+class ConsortiumPolicy(BaseModel):
+    """Whether the tender lets a consortium/JV bid — detected from the tender's own
+    sentences in code (app.pipeline.eligibility_checks), page-cited, never inferred.
+    "not_stated" means no explicit statement was found, not that it's forbidden.
+    """
+
+    status: Literal["allowed", "not_allowed", "not_stated"]
+    quote: str | None = None
+    page_ref: int | None = None
+
+
 class GoNoGoResult(BaseModel):
     """The full go_no_go document_analysis.result shape (docs/SPEC.md §6)."""
 
     score: int = Field(ge=0, le=100)
     decision: GoNoGoDecision
+    # Set when a failed eligibility criterion capped the score band's decision
+    # (reduce_pass.final_decision) — says why the decision is below what the score
+    # alone would give. None when nothing was capped.
+    decision_cap_reason: str | None = None
     criteria_matches: list[GoNoGoCriterionMatch] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
@@ -254,6 +269,8 @@ class GoNoGoResult(BaseModel):
     # including on the short-circuit paths above, since "what to attach" doesn't
     # depend on whether we could determine eligibility.
     documents_required: list[MapPassDocumentRequirement] = Field(default_factory=list)
+    # None for results stored before the check existed (docs/DECISIONS.md #93).
+    consortium_policy: ConsortiumPolicy | None = None
     # Section B (12-item Technical Qualification score, docs/DECISIONS.md) — same
     # additive/None-on-short-circuit-or-call-failure pattern as pq_checklist above.
     # tq_score is compute_tq_score(tq_factor_scores), never asked of the model.
@@ -310,29 +327,60 @@ class RiskFinderResult(BaseModel):
     risks: list[RiskFinderRisk] = Field(default_factory=list)
 
 
-class SynopsisProjectRequirement(BaseModel):
-    """One distinct project/scope requirement the tender asks for, plus any
-    alternative/optional way of meeting it the tender itself states (docs/DECISIONS.md
-    — the "About Project" synopsis sub-tab). Grounded in the same already-extracted
-    `criteria`/dates/amounts facts the rest of the synopsis call already sees, not a
-    fresh re-read of the document — same hallucination-risk profile as
-    `scope_summary`/`eligibility_summary` already carry, not a new category of risk.
+class ProjectTechnicalRequirement(BaseModel):
+    """A technical requirement the tender itself states (a technology, standard,
+    approved make, capacity, integration, certification, staffing level...) — always
+    page-cited, never inferred. project_brief.py drops any whose page_ref isn't one of
+    the pages the model was actually shown.
     """
 
+    category: str
     requirement: str
-    # What the tender states as an acceptable alternative/variant for this
-    # requirement (e.g. "Either on-site or cloud-hosted deployment is acceptable").
-    # "No alternative stated" when the tender gives no flexibility — never invented.
-    options: str
     page_ref: int = Field(ge=0)
 
 
+class ProjectApproachStep(BaseModel):
+    """One phase of the AI-suggested way to execute the project. NOT from the tender —
+    the frontend labels this section as an AI recommendation, kept visibly apart from
+    the page-cited technical requirements (docs/DECISIONS.md #92).
+    """
+
+    phase: str
+    description: str
+
+
+class ProjectTechStackItem(BaseModel):
+    """One AI-suggested technology choice for an area of the project. Same "AI
+    recommendation, not a tender fact" status as ProjectApproachStep."""
+
+    area: str
+    recommendation: str
+
+
+class ProjectBriefLLMResult(BaseModel):
+    """What the model returns for the Synopsis "About Project" tab (docs/DECISIONS.md
+    #92), written from the tender's own scope/specification page text rather than from
+    map-pass facts — the map pass extracts nothing about the project itself.
+    """
+
+    about_project: str
+    about_project_page_refs: list[int] = Field(default_factory=list)
+    technical_requirements: list[ProjectTechnicalRequirement] = Field(default_factory=list)
+    suggested_approach: list[ProjectApproachStep] = Field(default_factory=list)
+    suggested_tech_stack: list[ProjectTechStackItem] = Field(default_factory=list)
+
+
+class ProjectBrief(ProjectBriefLLMResult):
+    # The pages actually read to write this brief — shown in the UI so a reader knows
+    # what it's based on, and the allowlist page_refs are validated against.
+    source_pages: list[int] = Field(default_factory=list)
+
+
 class SynopsisLLMResult(BaseModel):
-    """What the model returns for synopsis — prose fields only, plus the structured
-    `project_requirements` list. `key_dates` and `financials` are populated by
-    reduce_pass.py directly from the already-verified, page-cited map-pass facts
-    (hard rule 7: zero hallucination tolerance for dates/amounts) rather than asked of
-    the model a second time.
+    """What the model returns for synopsis — prose fields only. `key_dates` and
+    `financials` are populated by reduce_pass.py directly from the already-verified,
+    page-cited map-pass facts (hard rule 7: zero hallucination tolerance for dates/
+    amounts) rather than asked of the model a second time.
     """
 
     title: str
@@ -340,7 +388,6 @@ class SynopsisLLMResult(BaseModel):
     scope_summary: str
     eligibility_summary: str
     payment_terms_summary: str
-    project_requirements: list[SynopsisProjectRequirement] = Field(default_factory=list)
     confidence: SynopsisConfidence
 
 
@@ -354,7 +401,9 @@ class SynopsisResult(BaseModel):
     scope_summary: str
     eligibility_summary: str
     payment_terms_summary: str
-    project_requirements: list[SynopsisProjectRequirement] = Field(default_factory=list)
+    # None when the brief's own LLM call failed (it never fails the synopsis) or for
+    # synopses stored before it existed — the frontend says "Reevaluate to generate".
+    project_brief: ProjectBrief | None = None
     confidence: SynopsisConfidence
 
 

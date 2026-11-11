@@ -130,7 +130,7 @@ if (Test-CeleryRunning) {
     Write-Host "  -Q default,llm - stop it and re-run this script to get a correct one.)" -ForegroundColor Yellow
 } else {
     Start-InNewWindow -Title "Celery worker" -WorkingDirectory $BackendDir `
-        -Command "& '$VenvPython' -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info -Q default,llm"
+        -Command "& '$VenvPython' -m celery -A app.workers.celery_app worker --pool=threads --concurrency=4 --loglevel=info -Q default,llm"
 }
 
 # --- Backend (uvicorn) ------------------------------------------------------

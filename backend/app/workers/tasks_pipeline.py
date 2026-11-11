@@ -20,6 +20,7 @@ Two Celery primitives beyond a plain chain do the fan-out/fan-in:
 import uuid
 
 from celery import chain, chord, group
+from sqlalchemy import func, select
 
 from app.core.logging import get_logger
 from app.storage.db import SessionLocal
@@ -184,6 +185,19 @@ def _mark_document_ready(self, reduce_results: list[str], document_id: str) -> N
         if document is not None and not_cancelled(document):
             document.status = "ready"
             db.commit()
+            # Computed in Postgres, not Python: uploaded_at is a server-side now(), so
+            # this avoids any app/DB clock or timezone mismatch.
+            total_seconds = db.scalar(
+                select(func.extract("epoch", func.now() - Document.uploaded_at)).where(
+                    Document.id == document.id
+                )
+            )
+            logger.info(
+                "pipeline.document_ready",
+                document_id=document_id,
+                total_pages=document.total_pages,
+                total_seconds=round(float(total_seconds), 1) if total_seconds is not None else None,
+            )
     except Exception as exc:  # noqa: BLE001 - last step in the chain; nothing left to retry into
         db.rollback()
         logger.error("pipeline.mark_ready_failed", document_id=document_id, error=str(exc))

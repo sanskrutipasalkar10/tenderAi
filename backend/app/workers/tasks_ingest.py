@@ -27,19 +27,28 @@ document already has, so the retry always starts from a genuinely clean slate. C
 re-extracting whatever had already succeeded — accepted, since a retry here means a
 real bug fired, not routine flakiness, and "simple and always correct" beats "faster
 but one more place to get subtly wrong."
+
+Ingestion is serialized per worker process by `_INGESTION_LOCK`: the dev worker runs
+`--pool=threads` (docs/DECISIONS.md #91) so map/reduce LLM calls overlap, but PyMuPDF
+is not thread-safe (it shares one global MuPDF context), and every fitz call in the
+worker happens inside run_ingestion. Two tenders uploaded together therefore ingest
+one after the other, exactly as they did under the old --pool=solo worker.
 """
 
+import threading
 import uuid
 
 from sqlalchemy import delete
 
-from app.core.logging import get_logger
+from app.core.logging import get_logger, log_duration
 from app.models.page import Page
 from app.storage.db import SessionLocal
 from app.workers._failure import mark_document_failed, not_cancelled
 from app.workers.celery_app import celery_app
 
 logger = get_logger(__name__)
+
+_INGESTION_LOCK = threading.Lock()
 
 
 @celery_app.task(
@@ -55,7 +64,8 @@ def ingest_document_task(self, document_id: str) -> None:
         if document is not None and not not_cancelled(document):
             logger.info("ingest.skipped_cancelled", document_id=document_id)
             return
-        ingestion.run_ingestion(db, uuid.UUID(document_id))
+        with _INGESTION_LOCK, log_duration(logger, "stage.ingestion", document_id=document_id):
+            ingestion.run_ingestion(db, uuid.UUID(document_id))
     except Exception as exc:  # noqa: BLE001 - Celery's own retry mechanism needs the broad catch
         db.rollback()
         if self.request.retries < self.max_retries:

@@ -6,6 +6,8 @@ evals/test_reduce_*.py once those are wired against this real architecture.
 
 import uuid
 
+import pytest
+
 from app.models.chunk import Chunk
 from app.models.chunk_extraction import ChunkExtraction
 from app.models.document import Document
@@ -22,13 +24,24 @@ from app.models.schemas import (
     MapPassRiskCandidate,
     PQChecklistItem,
     PQChecklistLLMResult,
+    ProjectBrief,
     RiskFinderLLMResult,
     RiskFinderLLMRisk,
     SynopsisLLMResult,
-    SynopsisProjectRequirement,
     TQScoringLLMResult,
 )
 from app.pipeline import reduce_pass
+
+
+@pytest.fixture(autouse=True)
+def _no_project_brief_call(monkeypatch) -> None:
+    """run_synopsis also builds the About Project brief, which reads `pages` rows these
+    fakes don't model — covered on its own in test_project_brief.py.
+    """
+    monkeypatch.setattr(reduce_pass, "build_project_brief", lambda db, document: None)
+    # run_go_no_go's consortium check reads `pages` too — covered in
+    # test_eligibility_checks.py.
+    monkeypatch.setattr(reduce_pass, "load_tender_pages", lambda db, document: [])
 
 
 def _fake_empty_pq_checklist() -> PQChecklistLLMResult:
@@ -474,60 +487,34 @@ def test_synopsis_dedupes_exact_duplicate_dates_from_overlapping_chunks(monkeypa
     assert len(analysis.result["key_dates"]) == 1
 
 
-def test_synopsis_project_requirements_pass_through_from_the_llm(monkeypatch) -> None:
-    """project_requirements is the one synopsis field that IS asked of the model
-    directly (unlike key_dates/financials, which are passed through verbatim from
-    map-pass) — just confirms run_synopsis actually forwards what the model returns
-    into the final result rather than dropping it.
+def test_synopsis_includes_the_project_brief(monkeypatch) -> None:
+    """The brief comes from its own call (app.pipeline.project_brief) — run_synopsis
+    just has to forward it into the stored result, on both the LLM and no-facts paths.
     """
-    document = _document()
-    db = FakeReduceSession(
-        chunk_extractions=[
-            _extraction(
-                MapPassResult(
-                    criteria=[
-                        MapPassCriterionFact(
-                            description="Deploy a cloud inventory system across 12 warehouses",
-                            page_ref=4,
-                        )
-                    ]
-                ).model_dump()
-            )
-        ]
+    brief = ProjectBrief(
+        about_project="Build a 5 MW solar plant at Nagpur.",
+        about_project_page_refs=[4],
+        source_pages=[4, 5],
     )
-    fake_llm_result = SynopsisLLMResult(
-        title="T", issuing_authority="A", scope_summary="s",
-        eligibility_summary="e", payment_terms_summary="p", confidence="high",
-        project_requirements=[
-            SynopsisProjectRequirement(
-                requirement="Deploy a cloud-based inventory system across 12 warehouses",
-                options="Either on-premise or cloud-hosted deployment is acceptable",
-                page_ref=4,
-            )
-        ],
-    )
-    monkeypatch.setattr(
-        reduce_pass, "complete_structured", lambda *a, **k: (fake_llm_result, "test-model")
-    )
-
-    analysis = reduce_pass.run_synopsis(db, document)
-
-    assert analysis.result["project_requirements"] == [
-        {
-            "requirement": "Deploy a cloud-based inventory system across 12 warehouses",
-            "options": "Either on-premise or cloud-hosted deployment is acceptable",
-            "page_ref": 4,
-        }
-    ]
-
-
-def test_synopsis_project_requirements_default_to_empty_list() -> None:
+    monkeypatch.setattr(reduce_pass, "build_project_brief", lambda db, doc: brief)
     document = _document()
     db = FakeReduceSession(chunk_extractions=[_extraction(MapPassResult().model_dump())])
 
     analysis = reduce_pass.run_synopsis(db, document)
 
-    assert analysis.result["project_requirements"] == []
+    stored = analysis.result["project_brief"]
+    assert stored["about_project"] == "Build a 5 MW solar plant at Nagpur."
+    assert stored["source_pages"] == [4, 5]
+
+
+def test_synopsis_still_succeeds_when_the_project_brief_is_unavailable() -> None:
+    document = _document()
+    db = FakeReduceSession(chunk_extractions=[_extraction(MapPassResult().model_dump())])
+
+    analysis = reduce_pass.run_synopsis(db, document)
+
+    assert analysis.result["project_brief"] is None
+    assert analysis.result["confidence"] == "low"
 
 
 # --- upsert ----------------------------------------------------------------------
@@ -550,3 +537,23 @@ def test_rerunning_a_module_upserts_the_existing_row_not_a_duplicate(monkeypatch
 
     assert analysis is existing  # same row updated, not a new insert
     assert db.added == []  # nothing new was db.add()-ed
+
+
+def test_synopsis_content_includes_payment_clauses_but_not_other_risks() -> None:
+    facts = MapPassResult(
+        risk_candidates=[
+            MapPassRiskCandidate(
+                category="Conditional Payment Terms",
+                clause_summary="Agency is paid only after the University receives funds.",
+                page_ref=33,
+            ),
+            MapPassRiskCandidate(
+                category="Indemnity", clause_summary="Unlimited indemnity.", page_ref=12
+            ),
+        ]
+    )
+
+    content = reduce_pass._format_synopsis_content(facts)
+
+    assert "[PAGE 33] payment clause (Conditional Payment Terms)" in content
+    assert "Indemnity" not in content

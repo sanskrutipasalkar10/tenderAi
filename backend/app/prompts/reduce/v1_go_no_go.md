@@ -24,6 +24,10 @@ For EACH criterion listed, decide whether the company's profile satisfies it:
   a government contract, or anything else that implies a real client/PO stood behind
   it. A criterion that explicitly requires a completed CLIENT or GOVERNMENT assignment
   is not satisfied by a demonstration alone.
+  For a turnover criterion that names specific financial years (e.g. "2023-24, 2024-25
+  and 2025-26"), use exactly those years from `annual_turnover` — never substitute the
+  profile's most recent years for them. If any named year is missing from the
+  profile, the status is `"insufficient_data"` and `company_value` says which year.
 - `criterion_type`: `"eligibility"` if this criterion is about the COMPANY's own
   capability or attributes (turnover, certifications, past experience, manpower,
   partner/OEM arrangement — anything a company profile field could actually answer).
@@ -83,6 +87,9 @@ evidence scores low, it is not left out):
   meets what the tender implies is needed.
 - `Financial Capability`: turnover (`annual_turnover`, sourced per `turnover_source`)
   and `net_worth_inr` against what the tender's financial criteria imply is expected.
+  When the company profile includes COMPUTED TURNOVER FIGURES, use exactly those
+  figures and averages — never do the turnover arithmetic yourself. A year with no
+  figure on file is missing data, not a shortfall.
 - `Strategic Relevance`: how well this tender's sector/geography matches the
   company's stated sectors/geographic presence — this is not primarily an eligibility
   question, score it on fit.
@@ -103,7 +110,9 @@ weighted score are computed from these, not asked of you directly. Also suggest 
 concrete `next_steps` a bid team would need to take if they proceed with this tender
 (e.g. "Prepare EMD of INR X", "Submit ISO 9001 certificate") — base these only on what
 the tender document actually states, never invent a requirement that isn't in the
-criteria below.
+criteria below. Never tell the bid team to claim an exemption, relaxation or waiver
+unless the criteria below state one for that exact requirement — an MSME/startup EMD
+exemption, for example, is not an exemption from turnover or experience criteria.
 
 Every comparison must be grounded in the literal criterion and company profile values
 given below — never invent a threshold or a company value that isn't present in either.

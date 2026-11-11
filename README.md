@@ -189,10 +189,13 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 **Step 7 — start the Celery worker** (another new terminal, venv active, still in
 `backend/`):
 ```bash
-python -m celery -A app.workers.celery_app worker --pool=solo --loglevel=info -Q default,llm
+python -m celery -A app.workers.celery_app worker --pool=threads --concurrency=4 --loglevel=info -Q default,llm
 ```
-`--pool=solo` is required on Windows (Celery's default prefork pool doesn't work there).
-On macOS/Linux you can drop it and get real concurrency instead. **The `-Q default,llm`
+Celery's default prefork pool doesn't work on Windows. `--pool=threads --concurrency=4`
+does, and runs up to 4 map-pass chunks / reduce modules at once — they spend almost all
+their time waiting on the LLM API, so threads overlap them well (`--pool=solo` ran every
+task strictly one at a time). Ingestion is still serialized inside the worker, since
+PyMuPDF isn't thread-safe (docs/DECISIONS.md #91). **The `-Q default,llm`
 is required** — `ingest_document_task` (`tasks_ingest.py`) and `map_pass_chunk_task`
 (`tasks_map.py`) both declare `queue="llm"` (per `celery_app.py`'s docstring: isolate
 slow LLM-calling tasks from cheap ones), and a worker started with no `-Q` flag only

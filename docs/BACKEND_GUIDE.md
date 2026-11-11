@@ -1075,8 +1075,8 @@ real Ollama Cloud calls, and a real Postgres instance.
 6. The chain continues automatically: `build_chunks_task` runs (cheap, `"default"`
    queue), then `tasks_pipeline._start_map_and_reduce` sets `status="analyzing"` and
    fans the map pass out as a chord — one `map_pass_chunk_task` per chunk, in
-   parallel across however many `"llm"`-queue workers exist (one at a time under a
-   single `--pool=solo` worker, the only pool mode that works reliably on Windows).
+   parallel across however many `"llm"`-queue workers exist (up to 4 at a time under
+   the dev worker's `--pool=threads --concurrency=4`, docs/DECISIONS.md #91).
    Each chunk's real per-call latency is highly variable in practice — anywhere from
    ~5s to 270s+ observed for real chunks against real Ollama Cloud traffic, occasionally
    worse when a call times out (180s default, `app/llm/client.py`'s

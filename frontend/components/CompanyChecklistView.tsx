@@ -16,10 +16,17 @@ import {
   Wrench,
 } from "lucide-react";
 import { useState } from "react";
+import {
+  RECOMMENDATION_LABEL,
+  bucketStrategicRelevance,
+  consortiumPolicyLabel,
+  pqGateLabel,
+  partnerRequiredLabel,
+} from "@/lib/goNoGo";
 import type { GoNoGoResult } from "@/lib/types";
 import CitationLink from "./CitationLink";
 import ScoreGauge from "./ScoreGauge";
-import { CriterionStatusBadge, SeverityBadge } from "./badges";
+import { CriterionStatusBadge, PositiveLevelBadge, SeverityBadge } from "./badges";
 import Card from "./ui/Card";
 import Tabs, { TabIconChip } from "./ui/Tabs";
 import { TQ_FACTOR_WEIGHTS } from "@/lib/tqFactorWeights";
@@ -47,20 +54,6 @@ const TQ_FACTOR_ICON: Record<string, typeof Cpu> = {
 };
 type SubTab = (typeof SUB_TABS)[number]["id"];
 
-const RECOMMENDATION_LABEL: Record<GoNoGoResult["decision"], string> = {
-  Go: "BID",
-  "Go (Management Review)": "BID (Management Review)",
-  "Conditional-Go (Partner Required)": "BID WITH PARTNER",
-  "No-Go": "NO-BID",
-};
-
-function bucketStrategicRelevance(score: number | undefined): "LOW" | "MEDIUM" | "HIGH" {
-  if (score === undefined) return "LOW";
-  if (score >= 70) return "HIGH";
-  if (score >= 40) return "MEDIUM";
-  return "LOW";
-}
-
 export default function CompanyChecklistView({
   documentId,
   goNoGoResult,
@@ -79,7 +72,9 @@ export default function CompanyChecklistView({
       {subTab === "pq" && <PQChecklistTab documentId={documentId} goNoGoResult={goNoGoResult} />}
       {subTab === "tq" && <TQScoringTab goNoGoResult={goNoGoResult} />}
       {subTab === "decision" && <BidDecisionTab goNoGoResult={goNoGoResult} />}
-      {subTab === "partner" && <PartnerPlaceholderTab />}
+      {subTab === "partner" && (
+        <PartnerRouteTab documentId={documentId} goNoGoResult={goNoGoResult} />
+      )}
     </div>
   );
 }
@@ -207,8 +202,7 @@ function TQScoringTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
 }
 
 function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
-  const pqGatePass = goNoGoResult.gaps.length === 0;
-  const partnerRequired = goNoGoResult.decision === "Conditional-Go (Partner Required)";
+  const pqGate = pqGateLabel(goNoGoResult);
   const strategicRelevance = bucketStrategicRelevance(
     goNoGoResult.factor_scores?.["Strategic Relevance"],
   );
@@ -216,14 +210,14 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
   return (
     <Card className="space-y-4">
       <Row label="PQ Gate">
-        <span className={pqGatePass ? "font-semibold text-status-go" : "font-semibold text-status-no-go"}>
-          {pqGatePass ? "PASS" : "FAIL"}
+        <span className={pqGate.pass ? "font-semibold text-status-go" : "font-semibold text-status-no-go"}>
+          {pqGate.label}
         </span>
       </Row>
       <Row label="Expected TQ Score">{goNoGoResult.tq_score ?? "Not available"}</Row>
       <Row label="Commercial Competitiveness">
         {goNoGoResult.commercial_competitiveness ? (
-          <SeverityBadge severity={goNoGoResult.commercial_competitiveness} />
+          <PositiveLevelBadge level={goNoGoResult.commercial_competitiveness} />
         ) : (
           "Not available"
         )}
@@ -236,10 +230,10 @@ function BidDecisionTab({ goNoGoResult }: { goNoGoResult: GoNoGoResult }) {
         )}
       </Row>
       <Row label="Strategic Relevance">
-        <SeverityBadge severity={strategicRelevance} />
+        <PositiveLevelBadge level={strategicRelevance} />
       </Row>
       <Row label="Partner Required">
-        <span className="font-semibold">{partnerRequired ? "YES" : "NO"}</span>
+        <span className="font-semibold">{partnerRequiredLabel(goNoGoResult)}</span>
       </Row>
       <Row label="Major Qualification Gap">
         {goNoGoResult.major_qualification_gap ?? "Not available"}
@@ -263,11 +257,35 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function PartnerPlaceholderTab() {
+function PartnerRouteTab({
+  documentId,
+  goNoGoResult,
+}: {
+  documentId: string;
+  goNoGoResult: GoNoGoResult;
+}) {
+  const policy = goNoGoResult.consortium_policy;
   return (
-    <Card className="text-sm text-muted-foreground">
-      Partner/OEM route assessment isn&apos;t built yet — it needs partner-company
-      capability data that doesn&apos;t exist anywhere in this system today. Coming soon.
-    </Card>
+    <div className="space-y-4">
+      <Card className="space-y-4">
+        <Row label="Consortium / JV bids">
+          <span className="font-semibold">{consortiumPolicyLabel(goNoGoResult)}</span>
+        </Row>
+        {policy?.quote && policy.page_ref !== null && (
+          <Row label="Tender wording">
+            <CitationLink documentId={documentId} pageRef={policy.page_ref}>
+              “{policy.quote}”
+            </CitationLink>
+          </Row>
+        )}
+        <Row label="Partner Required">
+          <span className="font-semibold">{partnerRequiredLabel(goNoGoResult)}</span>
+        </Row>
+      </Card>
+      <Card className="text-sm text-muted-foreground">
+        Matching specific partner/OEM companies isn&apos;t built yet — it needs partner-company
+        capability data that doesn&apos;t exist anywhere in this system today.
+      </Card>
+    </div>
   );
 }

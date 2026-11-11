@@ -22,6 +22,10 @@ responsiveness (a real, felt latency complaint in practice) — the accepted tra
 slightly less reasoning depth on genuinely complex analytical questions, not yet
 confirmed to matter in practice.
 
+A fifth task, "project_brief" (the Synopsis "About Project" tab, docs/DECISIONS.md
+#92), also routes to the fast/cheap tier: it reads the tender's own scope/specification
+pages and describes them, which is summarization, not the eligibility judgment the
+"reduce" tier's stronger (and much pricier) model is reserved for.
 Every task also has a genuinely local Ollama fallback (docs/DECISIONS.md #32/#76) —
 used by app.llm.client.complete_for_task when the Gemini call fails after its own
 retries, so a transient Gemini outage/rate-limit degrades the pipeline instead of
@@ -42,7 +46,7 @@ from typing import Literal
 
 from app.core.config import settings
 
-Task = Literal["map", "reduce", "vision", "chat"]
+Task = Literal["map", "reduce", "vision", "chat", "project_brief"]
 
 GEMINI_MAP_MODEL = "gemini/gemini-3.8-flash"
 GEMINI_REDUCE_MODEL = "gemini/gemini-3.1-pro-preview"
@@ -61,7 +65,7 @@ def route(task: Task) -> str:
         return GEMINI_REDUCE_MODEL
     if task == "vision":
         return OLLAMA_LOCAL_VISION_MODEL if settings.use_local_vision else GEMINI_VISION_MODEL
-    if task == "chat":
+    if task in ("chat", "project_brief"):
         return GEMINI_MAP_MODEL
     raise ValueError(f"Unknown task: {task!r}")
 
@@ -73,7 +77,7 @@ def route_fallback(task: Task) -> str:
     (use_local_vision), signaling to the caller there's nothing further to fall back
     to.
     """
-    if task in ("map", "reduce", "chat"):
+    if task in ("map", "reduce", "chat", "project_brief"):
         return OLLAMA_LOCAL_TEXT_MODEL
     if task == "vision":
         return OLLAMA_LOCAL_VISION_MODEL
